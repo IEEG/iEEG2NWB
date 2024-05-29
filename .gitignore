@@ -1,3 +1,9 @@
+# Annoying mac files
+.DS_Store
+
+# Annoying windows files
+Thumbs.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
