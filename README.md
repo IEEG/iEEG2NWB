@@ -19,7 +19,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgements
 
-Thanks to anyone who helped make this project happen.
+This work was done by Noah Markowitz and Stephan Bickel of the Human Brain Mapping Laboratory at North Shore University Hospital.
 
 ## Funding
 
