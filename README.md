@@ -20,11 +20,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgements
 
-This work was done by Noah Markowitz and Stephan Bickel of the Human Brain Mapping Laboratory at North Shore University Hospital.
+This work was done by Noah Markowitz and Stephan Bickel (PI) of the Human Brain Mapping Laboratory at The Feinstein Institutes for Medical Research, Northwell Health.
 
 ## Funding
 
-This project was funded by the following organizations:
+This project was funded by:
 - **Kavli Foundation** Seed Grant (Stephan Bickel).
 - **R01DC019979 NIMH** (MPI Stephan Bickel).
 
