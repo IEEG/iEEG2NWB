@@ -1,0 +1,9 @@
+tdt
+pynwb
+ndx_events
+ndx_ecog
+pyEDFlib
+soundfile
+mne
+openpyxl
+PyQt5

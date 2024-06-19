@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# iEEG2NWB.py
+# IEEG2NWB.py
 # A python-based script meant to convert edf, TDT and ecog.mat formatted data into an
 # NWB file
 #
@@ -57,7 +57,7 @@ except:
 #       * batch
 #   - If correspondence sheet as blank cells that contain only whitespace, remove the whitespaces
 
-class iEEG2NWB:
+class IEEG2NWB:
 
     def __init__(self,session_description = 'None',session_id = 'None'):
 
@@ -1186,7 +1186,7 @@ def batch_file_process(batch_excel_file,create_path=False):
             print('*' * 150)
 
             # Parse
-            inwb = iEEG2NWB()
+            inwb = IEEG2NWB()
             inwb.parse_params(row_dict)
 
         except:
@@ -1201,7 +1201,7 @@ def cmnd_line_parser():
                                     formatter_class=argparse.RawDescriptionHelpFormatter
                                     )
     parser.add_argument('--batch', required=False, help='excel file for batch conversion',dest='batch_file',default=None)
-    parser.add_argument('--gui', required=False, help='launch the iEEG2NWB gui',dest='gui',action='store_true')
+    parser.add_argument('--gui', required=False, help='launch the IEEG2NWB gui',dest='gui',action='store_true')
     parser.add_argument('--params','-p', required=False, help='json or yml params file to use instead of command line arguments',dest='params_file',default=None)
     parser.add_argument("--block_path", "-b", required=False, help="Path to the data to convert to NWB", dest='block')
     parser.add_argument("--labelfile", "-l", required=False, help="Path to the correspondence sheet", dest='labelfile')
@@ -1278,7 +1278,7 @@ def cmnd_line_parser():
         with open(params['params_file']) as file:
             params = yaml.load(file, Loader=yaml.FullLoader)
 
-        inwb = iEEG2NWB()
+        inwb = IEEG2NWB()
         inwb.parse_params(params)
 
     elif params['batch_file'] != None and os.path.isfile(params['batch_file']):
@@ -1317,7 +1317,7 @@ def cmnd_line_parser():
                 containerSources = containerSources.split(',')
                 params['digital'].append({'name': containerName,'stores': containerSources,'description': containerDescription})
 
-        inwb = iEEG2NWB()
+        inwb = IEEG2NWB()
         inwb.parse_params(params)
 
 
