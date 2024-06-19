@@ -6,6 +6,11 @@ Documentation in progress.
 
 Instructions on how to install the project.
 
+```python
+cd /users/Documents/iEEG2NWB
+conda env create -f env.yaml
+```
+
 ## Usage
 
 Instructions and examples of how to use the project.
