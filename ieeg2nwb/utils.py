@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import os.path as op
 import os
 import numpy as np
 import pandas as pd
@@ -194,3 +194,11 @@ def inspectNwb(nwbfile) -> dict:
 
 
     return output
+
+def _get_data_directory():
+    return op.join(op.dirname(__file__), 'data')
+
+def read_aseg_csv():
+    import pandas as pd
+    aseg_csv = op.join(_get_data_directory(), 'aseg.csv')
+    return pd.read_csv(aseg_csv)
