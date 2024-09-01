@@ -61,15 +61,16 @@ def iter_by_chan_edf(edf_obj, chunks, chanindices):
 
 # Import the json NWB file
 def load_nwb_settings():
-    pdir = os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(__file__)
-                )
-            )
-        )
-    )
+    # pdir = os.path.dirname(
+    #     os.path.dirname(
+    #         os.path.dirname(
+    #             os.path.dirname(
+    #                 os.path.dirname(__file__)
+    #             )
+    #         )
+    #     )
+    # )
+    pdir = os.path.dirname(__file__)
     settings_file = pdir + os.sep + 'nwb_settings.json'
     json_str = ''
     with open(settings_file) as file:
@@ -202,3 +203,30 @@ def read_aseg_csv():
     import pandas as pd
     aseg_csv = op.join(_get_data_directory(), 'aseg.csv')
     return pd.read_csv(aseg_csv)
+
+def copy_fsaverage_data(target_fsaverage):
+    import shutil
+    import filecmp
+    my_fsaverage = op.join(_get_data_directory(), 'fsaverage')
+    # Walk through the source directory
+    for dirpath, dirnames, filenames in os.walk(my_fsaverage):
+        # Determine the destination path
+        relative_path = os.path.relpath(dirpath, my_fsaverage)
+        target_path = os.path.join(target_fsaverage, relative_path)
+
+        # Ensure the target path exists
+        os.makedirs(target_path, exist_ok=True)
+
+        # Compare files
+        for filename in filenames:
+            src_file = os.path.join(dirpath, filename)
+            dst_file = os.path.join(target_path, filename)
+
+            # Copy the file if it doesn't exist in the destination or if it's different
+            if not os.path.exists(dst_file) or not filecmp.cmp(src_file, dst_file, shallow=False):
+                shutil.copy2(src_file, dst_file)
+
+    fsaverage_dir = op.join(_get_data_directory(), 'fsaverage')
+    if not op.isdir(fsaverage_dir):
+        shutil.copytree(op.join(_get_data_directory(), 'fsaverage'), fsaverage_dir)
+    return fsaverage_dir

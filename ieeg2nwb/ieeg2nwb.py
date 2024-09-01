@@ -113,8 +113,8 @@ class IEEG2NWB:
         self.tdt_eeg_chans = params['raw']['tdt']['neuro_channels']
         self.annots2ignore = params['raw']['edf']['annotations_to_ignore']
 
-    # Create subject object for nwb file
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
+        """Create the Subject object for the NWB file."""
         from pynwb.file import Subject
         self.subject = Subject(
             age=self._default_subject_info['age'] if age is None else 'P' + str(age) + 'Y',
@@ -128,8 +128,8 @@ class IEEG2NWB:
 
         return self.subject
 
-    # Create device object
     def create_device(self, name='Unknown', description=None, manufacturer=None):
+        """Create the Device object for the amplifier."""
         from pynwb.device import Device
         possible_devices = self.device_types
         # Check if name provided is in any of the possible devices set and others are empty
@@ -143,9 +143,8 @@ class IEEG2NWB:
         self.device = dev
         return self.device
 
-    # Read labelfile and clean up a bit
     def read_labelfile(self,labelfile):
-
+        """Read labelfile for use in reading raw data."""
         # If no labelfile provided and ecog file is used then use available info in file
         if labelfile == 'ecog':
             df = pd.DataFrame(self.raw_data['orig']['labelimport'])
@@ -464,15 +463,33 @@ class IEEG2NWB:
         self.electrode_table['table'] = elecTable
         return elecTable
 
+    def add_ielvis(self, subject_id, subject_directory):
+        """Add info from ielvis to correspondence sheet if missing.
+
+        Info includes:
+        * PTD
+        * fsaverage coordinates
+        * Volumetric and parcellation locations (FS_vol)
+        * lepto coordinates
+        * hem
+        * dk atlas
+        * d atlas
+        * yeo7 atlas
+        * yeo17 atlas
+        """
+
+
+
+
     # Get the spec of each channel to bin
     def create_table_regions(self):
         elecTable = self.electrode_table['table']
         df = self.labelfile['cleaned']
         eegTypes = self.ieeg_elecs
-        specIndices = {'ieeg': []}
+        specIndices = {'lfp': []}
         for idx, row in df.iterrows():
             if row.spec.lower() in eegTypes:
-                specIndices['ieeg'].append(idx)
+                specIndices['lfp'].append(idx)
             else:
                 if row.spec.lower() not in specIndices:
                     specIndices[row.spec.lower()] = []
@@ -480,7 +497,7 @@ class IEEG2NWB:
                 specIndices[row.spec.lower()].append(idx)
 
         # Create the electrode table regions
-        table_regions = {'ieeg': None}
+        table_regions = {'lfp': None}
         for spec in specIndices:
             table_regions[spec] = elecTable.create_region(name='electrodes',region=specIndices[spec], description=spec + ' electrodes')
 
@@ -706,7 +723,7 @@ class IEEG2NWB:
             is_ieeg = spec == 'ieeg'
 
             # Create electrical series
-            self.create_es(spec,specData, fs, table_regions[spec])
+            self.create_es(spec, specData, fs, table_regions[spec])
 
     def read_events_file(self,file):
 
@@ -777,22 +794,22 @@ class IEEG2NWB:
             start_time = datetime.now(tzlocal())
 
         self.nwb = NWBFile(
-            session_description = self.session_description,
-            identifier = self.identifier,
-            session_start_time = start_time,
-            experimenter = self.experimenter,
-            experiment_description = self.experiment_description,
+            session_description=self.session_description,
+            identifier=self.identifier,
+            session_start_time=start_time,
+            experimenter=self.experimenter,
+            experiment_description=self.experiment_description,
             session_id=self.session_id,
-            institution = self.institution,
-            notes = self.notes,
+            institution=self.institution,
+            notes=self.notes,
             data_collection=self.data_collection,
-            keywords = self.keywords,
-            subject = self.subject,
-            devices = [self.device],
-            lab = self.lab,
-            acquisition = self.acquisitions,
-            electrodes = self.electrode_table['table'],
-            electrode_groups = self.electrode_group
+            keywords=self.keywords,
+            subject=self.subject,
+            devices=[self.device],
+            lab=self.lab,
+            acquisition=self.acquisitions,
+            electrodes=self.electrode_table['table'],
+            electrode_groups=self.electrode_group
         )
 
         # If eventsTable exists, add it

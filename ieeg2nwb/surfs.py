@@ -7,7 +7,17 @@ import os.path as op
 from nibabel.freesurfer.io import read_geometry
 import pandas as pd
 from typing import Union
+import nibabel as nib
 from .io import read_ielvis
+from .utils import _get_data_directory
+
+"""
+Find nearest
+
+* subject vertex to fsaverage vertex (all/subset)
+* multiple coordinates distance to nearest vertex (subject space)
+"""
+
 
 # Shorthands for the different atlases as part of freesurfer"
 ATLASES = {
@@ -18,64 +28,123 @@ ATLASES = {
     'y17': 'Yeo2011_17Networks_N1000'
 }
 
-def create_indiv_mapping(subject, atlas, subjects_dir=None, n_jobs=-1):
-    """
+ATLASES = {
+    "dk": {
+        "annot_fname": "aparc",
+        "description": "Desikan-Killiany atlas",
+        "full_name": "Desikan-Killiany"
+    },
+    "d": {
+        "annot_fname": "aparc.a2009s",
+        "description": "Destrieux atlas",
+        "full_name": "Destrieux"
+    },
+    "hcp": {
+        "annot_fname": "HCP-MMP1",
+        "description": "Human Connectome Project Multi-Modal Parcellation",
+        "full_name": "HCP-MMP1"
+    },
+    "y7": {
+        "annot_fname": "Yeo2011_7Networks_N1000",
+        "description": "Yeo 2011 7 Networks",
+        "full_name": "Yeo7",
+    },
+    "y17": {
+        "annot_fname": "Yeo2011_17Networks_N1000",
+        "description": "Yeo 2011 17 Networks",
+        "full_name": "Yeo17"
+    }
+}
+
+def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
+    """Create individual mapping from fsaverage to subject space of parcellations
 
     Parameters
     ----------
     subject : str
         Freesurfer subject ID
-    atlas : str
-        The parcellated atlas to create an individual mapping for. Can be shorthands "y7", "y17" or "hcp".
-        Or can be the atlas file name such as "Yeo2011_7Networks_N1000" or "HCP-MMP1"
     subjects_dir : str | None
         The Freesurfer subject directory. If None then will take mne.get_config()['SUBJECTS_DIR']
 
     """
 
-    from .surfs import find_nearest_vertex
+    if parc is not None:
+        ATLASES = {parc[0]: parc[1]}
+
+    atlas_list = ATLASES.keys()
 
     if subjects_dir is None:
         from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
-    if atlas in ATLASES.keys():
-        atlas = ATLASES[atlas]
+    if atlas_list is None:
+        atlas_list = ATLASES
+    else:
+        if isinstance(atlas_list, dict):
+            atlas_list = [atlas_list]
 
-    # Run the loop in parallel using joblib
-    for hem in ['lh', 'rh']:
+        if not isinstance(atlas_list, list):
+            raise TypeError("atlas_list must be a list of dictionaries or a single dictionary")
 
-        annot_fname = hem + '.' + atlas + '.annot'
+    for hem in ["lh", "rh"]:
+        global closest_verts
+        closest_verts = []
+        for a in atlas_list.keys():
 
-        # Get fsaverage data
-        fsaverage_sphere_file = os.path.join(subjects_dir,'fsaverage','surf', hem + '.sphere.reg')
-        fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage','label',annot_fname)
-        fsavg_vert_coords, _ = read_geometry(fsaverage_sphere_file)
-        fsavg_annot_labels, ctab, annot_names = read_annot(fsaverage_annot_file)
+            global cverts
+            cverts = closest_verts
 
-        # Get single subject data
-        subject_sphere_file = os.path.join(subjects_dir, subject, 'surf', hem + '.sphere.reg')
-        subject_annot_file = os.path.join(subjects_dir, subject, 'label', annot_fname)
-        sub_vert_coords, _ = read_geometry(subject_sphere_file)
+            annot_fname = hem + '.' + ATLASES[a]["annot_fname"] + '.annot'
 
-        # Create variables for single subject annot
-        n_sub_verts = sub_vert_coords.shape[0]
-        subject_vert_labels = np.zeros(n_sub_verts)
+            if op.isfile(annot_fname):
+                continue
 
-        def process_vertex(ii):
-            dist = np.sum((fsavg_vert_coords - sub_vert_coords[ii, :]) ** 2, axis=1)
-            fsavg_closest_vert = dist.argmin()
-            return fsavg_annot_labels[fsavg_closest_vert]
+            fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage', 'label', annot_fname)
+            if not op.exists(fsaverage_annot_file):
+                from .utils import copy_fsaverage_data
+                copy_fsaverage_data(subjects_dir)
 
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(process_vertex)(ii) for ii in tqdm(range(n_sub_verts), desc='Processing %s' % annot_fname, unit=' vertices', position=0, leave=True)
-        )
+            # Get fsaverage data
+            fsaverage_sphere_file = os.path.join(subjects_dir,'fsaverage','surf', hem + '.sphere.reg')
+            fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage','label',annot_fname)
+            fsavg_vert_coords, _ = read_geometry(fsaverage_sphere_file)
+            fsavg_annot_labels, ctab, annot_names = read_annot(fsaverage_annot_file)
 
-        subject_vert_labels[:] = results
+            # Get single subject data
+            subject_sphere_file = os.path.join(subjects_dir, subject, 'surf', hem + '.sphere.reg')
+            subject_annot_file = os.path.join(subjects_dir, subject, 'label', annot_fname)
+            sub_vert_coords, _ = read_geometry(subject_sphere_file)
 
-        # Write to file
-        write_annot(subject_annot_file, subject_vert_labels.astype('int'), ctab, annot_names)
-        print('----> Writing to file: %s' % subject_annot_file)
+            # Create variables for single subject annot
+            n_sub_verts = sub_vert_coords.shape[0]
+            subject_vert_labels = np.zeros(n_sub_verts)
+
+            def process_vertex(ii):
+                if len(cverts) == 0:
+                    dist = np.sum((fsavg_vert_coords - sub_vert_coords[ii, :]) ** 2, axis=1)
+                    fsavg_closest_vert = dist.argmin()
+                    cverts.append(fsavg_closest_vert)
+                    label = fsavg_annot_labels[fsavg_closest_vert]
+                else:
+                    label = fsavg_annot_labels[cverts[ii]]
+
+                return label
+
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(process_vertex)(ii) for ii in
+                    tqdm(range(n_sub_verts),
+                    desc='Processing %s' % annot_fname,
+                    unit=' vertices',
+                    position=0,
+                    leave=True
+                         )
+            )
+
+            subject_vert_labels[:] = results
+
+            # Write to file
+            write_annot(subject_annot_file, subject_vert_labels.astype('int'), ctab, annot_names)
+            print('----> Writing to file: %s' % subject_annot_file)
 
 
 def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = None,
@@ -157,7 +226,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
     # Write out to file
     if write_to_file:
         from .misc import timenow
-        fname = op.join(subjects_dir, subject, "elec_recon", subject + "_2.INF")
+        fname = op.join(subjects_dir, subject, "elec_recon", subject + ".INF")
         with open(fname, 'w') as file:
             file.write(timenow() + '\n')
             file.write("R A S \n")
@@ -199,7 +268,17 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
         from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
+    if coords is None:
+        coord_type = "PIAL" if surf.lower()=="pial" else "INF"
+        elecs_df = read_ielvis(subject, subjects_dir, squeeze=True)
+        coords = np.stack(elecs_df[coord_type].values)
+        hem = elecs_df["hem"].str.lower().to_list()
+        labels = elecs_df["label"].to_list()
+
     n_elecs = coords.shape[0]
+
+    if labels is None:
+        labels = np.arange(0, n_elecs, 1)
 
     # Interpret hemispheres
     if hem == 'l' or hem == 'lh':
@@ -215,8 +294,6 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
     verts['l'], _ = read_geometry(lh_surf_file)
     verts['r'], _ = read_geometry(rh_surf_file)
 
-    if labels is None:
-        labels = np.arange(0, n_elecs, 1)
 
     # Function to process each coordinate
     def process_coordinate(ii):
@@ -235,3 +312,127 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
 
     return df
 
+
+def elec_to_parc(
+    subject: str,
+    subjects_dir: str = None,
+    coords: np.array = None,
+    hem: Union[list, np.array] = None,
+    labels: Union[list, np.array] = None,
+    parc: list[str, str] = None,
+    write_to_file: bool = True,
+    n_jobs: int = -1
+):
+    """
+    Map electrode coordinates to parcellations in a FreeSurfer subject's brain.
+
+    Parameters
+    ----------
+    subject : str
+        The FreeSurfer subject identifier.
+    subjects_dir : str, optional
+        The directory containing the FreeSurfer subjects. If None, the environment variable `SUBJECTS_DIR` will be used.
+    coords : np.array, optional
+        A NumPy array of electrode coordinates in RAS space (shape: n_electrodes x 3). If None, coordinates should be provided elsewhere.
+    hem : Union[list, np.array], optional
+        A list or array indicating the hemisphere ('lh' or 'rh') for each electrode. The length should match the number of electrodes in `coords`. If None, the hemispheres should be inferred or provided elsewhere.
+    labels : Union[list, np.array], optional
+        A list or array of electrode labels.
+    parc : list[str, str], optional
+        A 2-element list with the shorthand for an atlas and the filename piece for it (ex: ["y7", "Yeo2011_7Networks_N1000"])
+    write_to_file : bool, optional
+        Whether to write the parcellation results to a file (default is True).
+    n_jobs : int, optional
+        The number of parallel jobs to use for computation. Use `-1` to use all available processors (default is -1).
+
+    Returns
+    -------
+    parcellation_results : pd.DataFrame
+        A dictionary containing the parcellation results for each electrode. Keys include electrode names and corresponding parcellation labels.
+
+    Notes
+    -----
+    This function maps electrode coordinates to the corresponding parcellations in a FreeSurfer subject's brain, allowing for analysis of electrode data within specific brain regions.
+
+    Examples
+    --------
+    >>> subject = 'subject01'
+    >>> coords = np.array([[30.2, -22.5, 50.7], [28.1, -24.3, 48.9]])
+    >>> hem = ['lh', 'lh']
+    >>> labels = ['caudal-MT', 'precentral']
+    >>> results = elec_to_parc(subject, coords=coords, hem=hem, labels=labels)
+    """
+    if subjects_dir is None:
+        from mne import get_config
+        subjects_dir = get_config()['SUBJECTS_DIR']
+
+    # Find nearest vertex of each electrode
+    elec_df = find_nearest_vertex(subject, subjects_dir=subjects_dir, coords=coords, hem=hem, labels=labels, n_jobs=n_jobs)
+
+    # Combine with ielvis data
+    ielvis_df = read_ielvis(subject, subjects_dir, squeeze=True).drop("hem",axis=1)
+    elec_df = pd.merge(elec_df, ielvis_df, on="label")
+
+    # Make a dataframe for the final output
+    output_df = pd.DataFrame({"label": elec_df["label"]})
+
+    # Load volumetric segmentation for depths
+    aparc_aseg_file = os.path.join(subjects_dir, subject, 'mri', 'aparc+aseg.mgz')
+    aparc_aseg = nib.load(aparc_aseg_file)
+    aparc_aseg_data = aparc_aseg.get_fdata()
+
+    # Read freesurfer lut
+    from mne import read_freesurfer_lut
+    roi2val, _ = read_freesurfer_lut()
+    val2roi = {v: k for k, v in roi2val.items()}
+
+    # Go through each parcellation
+    for a in ATLASES.keys():
+
+        # If the atlas doesn't exist then create it
+        sample_annot = os.path.join(subjects_dir, 'fsaverage', 'label', 'lh.' + ATLASES[a]["annot_fname"] + '.annot')
+        if not os.path.exists(sample_annot):
+            create_indiv_mapping(subject, a, subjects_dir=subjects_dir, n_jobs=n_jobs)
+
+        # Create a dataframe to save results
+        atlas_labels = elec_df.copy()
+        atlas_labels["region"] = ""
+
+        # Load the atlas
+        lh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'lh.' + ATLASES[a]["annot_fname"] + '.annot')
+        rh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'rh.' + ATLASES[a]["annot_fname"] + '.annot')
+        lh_annot_labels, ctab, lh_annot_names = read_annot(lh_annot_fname)
+        rh_annot_labels, _, rh_annot_names = read_annot(rh_annot_fname)
+
+        # Go through each electrode
+        for i, row in atlas_labels.iterrows():
+
+            # If depth then find voxel it's in
+            if row["spec"] == "D":
+                coords = np.round(row["PIALVOX"]).astype(int)
+                xyz = np.array([coords[0], coords[1], aparc_aseg_data.shape[2] - coords[2]])
+                aparc_aseg_vox_val = aparc_aseg_data[tuple(xyz)]
+                aparc_aseg_roi = val2roi[aparc_aseg_vox_val]
+                atlas_labels.at[i, "region"] = aparc_aseg_roi
+                continue
+
+            # Find the region value
+            if row["hem"] == "l":
+                val = lh_annot_labels[row["closest_vert"]]
+                atlas_labels.at[i, "region"] = lh_annot_names[val].decode()
+            else:
+                val = rh_annot_labels[row["closest_vert"]]
+                atlas_labels.at[i, "region"] = rh_annot_names[val].decode()
+
+            if val == -1:
+                atlas_labels.at[i, "region"] = "unknown"
+
+        # Save to tsv file
+        if write_to_file:
+            output_fname = os.path.join(subjects_dir, subject, 'elec_recon', subject + '_' + a.upper() + '_AtlasLabels.tsv')
+            atlas_labels.to_csv(output_fname, sep='\t', index=False, columns=["label", "region"], header=False)
+
+        # Add to output dataframe
+        output_df[a] = atlas_labels["region"]
+
+    return output_df

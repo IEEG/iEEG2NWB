@@ -22,7 +22,7 @@
             },
             "x": {
                 "title": "x",
-                "search": "(?:fsaverage_coords_1|fsaverage_1)",
+                "search": "(?:fsaverage_coords_1|fsaverage_1|fsaverage_x)",
                 "description": "the x coordinate of the channel location in freesurfer average (fsaverage) space",
                 "default": 999.0,
                 "type": "float",
@@ -30,7 +30,7 @@
             },
             "y": {
                 "title": "y",
-                "search": "(?:fsaverage_coords_2|fsaverage_2)",
+                "search": "(?:fsaverage_coords_2|fsaverage_2|fsaverage_y)",
                 "description": "the y coordinate of the channel location in freesurfer average (fsaverage) space",
                 "default": 999.0,
                 "type": "float",
@@ -38,7 +38,7 @@
             },
             "z": {
                 "title": "z",
-                "search": "(?:fsaverage_coords_3|fsaverage_3)",
+                "search": "(?:fsaverage_coords_3|fsaverage_3|fsaverage_z)",
                 "description": "the z coordinate of the channel location in freesurfer average (fsaverage) space",
                 "default": 999.0,
                 "type": "float",
@@ -46,7 +46,7 @@
             },
             "location": {
                 "title": "location",
-                "search": "(?:FS_vol|AparcAseg_Atlas)",
+                "search": "(?:FS_vol|AparcAseg_Atlas|aparc_aseg)",
                 "description": "the location of channel within the subject e.g. brain region",
                 "default": "unknown",
                 "type": "string",
@@ -79,7 +79,7 @@
             },
             "lepto_x": {
                 "title": "lepto_x",
-                "search": "(?:LEPTO_COORDS_1|LEPTO_1)",
+                "search": "(?:LEPTO_COORDS_1|LEPTO_1|LEPTO_x)",
                 "description": "the x coordinate of the channel location in native leptomeningeal space",
                 "default": 999.0,
                 "type": "float",
@@ -87,7 +87,7 @@
             },
             "lepto_y": {
                 "title": "lepto_y",
-                "search": "(?:LEPTO_COORDS_2|LEPTO_2)",
+                "search": "(?:LEPTO_COORDS_2|LEPTO_2|LEPTO_y)",
                 "description": "the y coordinate of the channel location native leptomeningeal space",
                 "default": 999.0,
                 "type": "float",
@@ -95,7 +95,7 @@
             },
             "lepto_z": {
                 "title": "lepto_z",
-                "search": "(?:LEPTO_COORDS_3|LEPTO_3)",
+                "search": "(?:LEPTO_COORDS_3|LEPTO_3|LEPTO_z)",
                 "description": "the z coordinate of the channel location native leptomeningeal space",
                 "default": 999.0,
                 "type": "float",
@@ -135,41 +135,41 @@
             },
             "hem": {
                 "title": "hem",
-                "search": "(?:LvsR|Hem)",
+                "search": "(?:LvsR|Hem|hem)",
                 "description": "hemisphere of the brain channel is located on",
                 "default": "unknown",
                 "type": "string",
                 "required": false
             },
-            "dk": {
-                "title": "dk",
+            "desikan_killiany_atlas": {
+                "title": "desikan_killiany_atlas",
                 "search": "(?:Desikan_Killiany|DK_Atlas)",
                 "description": "Location of channel according to Desikan-Killiany atlas",
                 "default": "unknown",
                 "type": "string",
                 "required": false
             },
-            "destrieux": {
-                "title": "destrieux",
+            "destrieux_atlas": {
+                "title": "destrieux_atlas",
                 "search": "(?:Destrieux|D_Atlas)",
                 "description": "Location of channel according to Destrieux atlas",
                 "default": "unknown",
                 "type": "string",
                 "required": false
             },
-            "yeo7": {
-                "title": "yeo7",
+            "yeo7_atlas": {
+                "title": "yeo7_atlas",
                 "search": "(?:Yeo7|Y7_Atlas)",
                 "description": "Location of channel according to Yeo 7-network atlas",
-                "default": "NAN",
+                "default": "unknown",
                 "type": "string",
                 "required": false
             },
-            "yeo17": {
-                "title": "yeo17",
+            "yeo17_atlas": {
+                "title": "yeo17_atlas",
                 "search": "(?:Yeo17|Y17_Atlas)",
                 "description": "Location of channel according to Yeo 17-network atlas",
-                "default": "NAN",
+                "default": "unknown",
                 "type": "string",
                 "required": false
             },
@@ -200,28 +200,20 @@
         }
     },
 
-    // File meta-data
-    // Below fields were previously present but then removed
-    // experimenter: Lab members of the Human Brain Mapping Lab
-    "meta_data": {
-        "lab": "Human Brain Mapping Lab at Feinstein-Northwell",
-        "notes": "NA",
-        "institution": "North Shore University Hospital",
-        "data_collection": "NA",
-        "session_id": "None",
-        "session_description": "None",
-        "experiment_description": "None",
-        "date": "1992-11-09 00:00:00"
-    },
+    "lab": "Human Brain Mapping Lab at Feinstein-Northwell",
+    "notes": "NA",
+    "institution": "North Shore University Hospital",
+    "data_collection": "NA",
+    "session_id": "None",
+    "session_description": "None",
+    "experiment_description": "None",
+    "start_time": "1992-11-09 00:00:00",
 
-    // Subject info
-    "subject": {
-        "species": "Homo sapiens",
-        "subject_id": "None",
-        "sex": "U",
-        "age": "Unknown",
-        "description": "intracranial patient"
-    },
+    "subject_species": "Homo sapiens",
+    "subject_id": "None",
+    "subject_sex": "U",
+    "subject_age": "Unknown",
+    "subject_description": "intracranial patient",
 
     // Recording devices used
     "devices": {
@@ -234,7 +226,7 @@
         "natus": {
             "name": "Natus",
             "description": "Quantum Headbox",
-            "manufacturer": "Natus",
+            "manufacturer": "Natus Medical Inc.",
             "search": "(?:Natus*|xltek*|quantum*)"
         }
     },
@@ -254,27 +246,34 @@
         }]
     },
 
-    // Data formats
-    "raw": {
-        "edf": {
-            "annotations_to_ignore": ["Clip Not*", "Montage*", "Gain/Filter Change", "Breakout box reconnected.", "Started Analyzer -*", "XLSpik*", "XLEven*","Video System*","Video Recording*","Persyst*"]
-        },
-        "tdt": {
-            "neuro_channels": [
-                ["RAWx"],
-                ["EEG1", "EEG2"],
-                ["RSn1", "RSn2"]
-            ]
-        },
-        "date": "1992-11-09 00:00:00"
-    },
+    // Regex expressions to ignore certain annotations
+    "annotations_to_ignore": ["Clip Not*", "Montage*", "Gain/Filter Change", "Breakout box reconnected.", "Started Analyzer -*", "XLSpik*", "XLEven*","Video System*","Video Recording*","Persyst*"],
 
-    // Labels that indicate an electrode recorded intracranial activity
-    "lfp_specs": ["depth", "hd_depth", "strip", "hd_strip", "grid", "hd_grid", "seeg", "ecog", "hseeg"],
+    // The places to look for neuronal data in TDT data
+    "tdt_neuro_channels": [
+        ["RAWx"],
+        ["EEG1", "EEG2"],
+        ["RSn1", "RSn2"]
+    ],
+
+    "edf_annotations_to_ignore": ["Clip Not*", "Montage*", "Gain/Filter Change", "Breakout box reconnected.", "Started Analyzer -*", "XLSpik*", "XLEven*","Video System*","Video Recording*","Persyst*"],
+
+    // Electrode spec labels and whether seeg or ecog
+    "intracranial_specs": {
+        "depth": "seeg",
+        "hd_depth": "seeg",
+        "seeg": "seeg",
+        "hseeg": "seeg",
+        "strip": "ecog",
+        "hd_strip": "ecog",
+        "grid": "ecog",
+        "hd_grid": "ecog",
+        "ecog": "ecog"
+    },
 
     // How and where to store key acquisitions
     "acquisitions": {
-        "ieeg": "/acquisitions/ieeg",
+        "lfp": "/acquisitions/lfp",
         "references": {
             "avg": {
                 "path": "/general/average_ref",

@@ -1,7 +1,9 @@
 import os
 import pandas as pd
+import numpy as np
 
 def _read_electrodeNames(elecNamesFile):
+    """Read electrodeNames file and return a list of dictionaries"""
     elecList = []
     # Dictionary for each electrode
     elecDict = {
@@ -31,6 +33,7 @@ def _read_electrodeNames(elecNamesFile):
     return elecList
 
 def _read_coordinates(coordFname):
+    """Read electrode coordinates from an ielvis file and return a list of lists"""
     coords = []
     with open(coordFname,'r') as f:
         isHdr = True
@@ -48,6 +51,7 @@ def _read_coordinates(coordFname):
     return coords
 
 def _read_ptd(ptdFname):
+    """Read PTD values from a .mat file"""
     from scipy.io import loadmat
     ptd_tmp = loadmat(
         ptdFname,
@@ -62,13 +66,20 @@ def _read_ptd(ptdFname):
 
     return ptd
 
-def read_ielvis(subject, subjects_dir=None):
-    """Simple function to read iELVis elec_recon directory
+def _read_atlas_labels(atlasFname):
+    """Read labels in a saved tsv file"""
+    atlas_labels = pd.read_csv(atlasFname, sep='\t', names=['label','region'])
+    return atlas_labels
+
+def read_ielvis(subject, subjects_dir=None, squeeze=False):
+    """Function to read iELVis output in elec_recon directory
 
     Parameters
     ----------
     subdir : str
         The freesurfer subject directory containing iELVis files in a elec_recon folder
+    squeeze: bool
+        If True, the coordinates are returned as a list of lists. If False, all coordinates x,y,z points have their own column
 
     Returns : pd.DataFrame
         DataFrame of the iELVis produced information
@@ -82,7 +93,7 @@ def read_ielvis(subject, subjects_dir=None):
     elecReconDir = os.path.join(subjects_dir, subject, 'elec_recon')
 
     # Types of coordinates to import
-    coords2use = ['LEPTO','LEPTOVOX','PIAL','PIALVOX','FSAVERAGE','INF']
+    coord_types = ['LEPTO','LEPTOVOX','PIAL','PIALVOX','FSAVERAGE','INF']
 
     # Get electrodeNames files and turn into pandas DataFrame
     elecNamesFile = os.path.join(elecReconDir, subject + '.electrodeNames')
@@ -90,10 +101,17 @@ def read_ielvis(subject, subjects_dir=None):
     elecTable = pd.DataFrame(elecNames)
 
     # Get types of coordinates and add them to the DataFrame
-    for c in coords2use:
+    for c in coord_types:
         coordFname = os.path.join(elecReconDir, subject + '.' + c)
         coords = _read_coordinates(coordFname)
-        elecTable[c] = coords
+
+        if not squeeze:
+            coords = np.array(coords)
+            for ii, xyz in enumerate(["x", "y", "z"]):
+                c_xyz = c + "_" + xyz
+                elecTable[c_xyz] = coords[:, ii]
+        else:
+            elecTable[c] = coords
 
     # Get PTD if it's there
     try:
@@ -107,6 +125,16 @@ def read_ielvis(subject, subjects_dir=None):
         elecTable = pd.merge(elecTable,ptd_df,on='label')
     except:
         print('Could not get PTD values')
+
+    # Get atlas labels if they're there
+    from .surfs import ATLASES
+    for a in ATLASES.keys():
+        atlas_fname = os.path.join(elecReconDir, subject + '_' + a.upper() + "_AtlasLabels.tsv")
+        if os.path.exists(atlas_fname):
+            new_col_name = ATLASES[a]["full_name"].lower() + "_atlas"
+            atlas_labels = _read_atlas_labels(atlas_fname).rename(columns={'region': new_col_name})
+            elecTable = pd.merge(elecTable, atlas_labels, on='label')
+
 
     return elecTable
 

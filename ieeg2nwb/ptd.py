@@ -13,7 +13,7 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
         from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
-    elecs_df = read_ielvis(op.join(subjects_dir, subject))
+    elecs_df = read_ielvis(subject=subject, subjects_dir=subjects_dir, squeeze=True)
 
     # Read the aparc+aseg.mgz file
     aparc_aseg_file = op.join(subjects_dir, subject, 'mri', 'aparc+aseg.mgz')
@@ -94,6 +94,8 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     # Save
     fname = op.join(subjects_dir, subject, "elec_recon", "GreyWhite_classifications.mat")
     savemat(fname, {"PTD_idx": PTD_idx})
+
+    return PTD_idx
 
 
 
