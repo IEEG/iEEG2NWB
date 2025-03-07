@@ -8,7 +8,7 @@ from nibabel.freesurfer.io import read_geometry
 import pandas as pd
 from typing import Union
 import nibabel as nib
-from fileio.helpers import _read_electrodeNames, _read_coordinates
+from fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
 from ieeg2nwb.utils import _get_data_directory
 
 """
@@ -142,7 +142,7 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
 
     # Check for incorrect input
     is_none = [x is None for x in [coords, hem, labels]]
-    if None in [coords, hem, labels] and not all(is_none):
+    if (None in [hem, labels] or coords is None) and not all(is_none):
         raise ValueError("If one of [hem,label,coords] is None then all must be None")
         return None
 
@@ -153,19 +153,11 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
 
     if all(is_none):
         coord_type = "PIAL" if surf.lower()=="pial" else "INF"
-        elec_recon_dir = os.path.join(subjects_dir, subject, 'elec_recon')
-        coord_fname = os.path.join(elec_recon_dir, subject + '.' + coord_type)
-        elecnames_fname = os.path.join(elec_recon_dir, subject + '.electrodeNames')
-        coords = _read_coordinates(coord_fname)
-        coords = np.array(coords)
-        elecNames = _read_electrodeNames(elecnames_fname)
-
-        hem = []
-        labels = []
-        n_elecs = len(elecNames)
-        for el in elecNames:
-            hem.append(el["hem"].lower())
-            labels.append(el["label"])
+        elecs_df = _read_ielvis_base(subject, subjects_dir)
+        coords = np.array(elecs_df[coord_type].to_list())
+        hem = elecs_df["hem"].str.lower().to_list()
+        labels = elecs_df["label"].to_list()
+        n_elecs = elecs_df.shape[0]
 
     else:
 
@@ -229,6 +221,7 @@ def elec_to_parc(
     coords: np.array = None,
     hem: Union[list, np.array] = None,
     labels: Union[list, np.array] = None,
+    spec: list[str] = None,
     parc: list[str, str] = None,
     write_to_file: bool = True,
     n_jobs: int = -1
@@ -248,6 +241,8 @@ def elec_to_parc(
         A list or array indicating the hemisphere ('lh' or 'rh') for each electrode. The length should match the number of electrodes in `coords`. If None, the hemispheres should be inferred or provided elsewhere.
     labels : Union[list, np.array], optional
         A list or array of electrode labels.
+    spec: list[str], optional
+        List of type of sensor for each contact. Options are ["D", "G", "S"] where D=seeg and G/S=ecog
     parc : list[str, str], optional
         A 2-element list with the shorthand for an atlas and the filename piece for it (ex: ["y7", "Yeo2011_7Networks_N1000"])
     write_to_file : bool, optional
@@ -276,12 +271,29 @@ def elec_to_parc(
         from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
+    # Check for incorrect input
+    is_none = [x is None for x in [coords, hem, labels, spec]]
+    if None in [coords, hem, labels] and not all(is_none):
+        raise ValueError("If one of [hem,label,coords] is None then all must be None")
+        return None
+    elif not all(is_none):
+        elec_df = pd.DataFrame({"label": labels, "spec": spec,"hem": hem, "PIAL": coords})
+        n_elecs = elec_df.shape[0]
+    else:
+        elec_df = _read_ielvis_base(subject, subjects_dir)
+        coords = np.array(elec_df["PIAL"].to_list())
+        hem = elec_df["hem"].str.lower().to_list()
+        labels = elec_df["label"].to_list()
+        n_elecs = elec_df.shape[0]
+
     # Find nearest vertex of each electrode
-    elec_df = find_nearest_vertex(subject, subjects_dir=subjects_dir, coords=coords, hem=hem, labels=labels, n_jobs=n_jobs)
+    vert_df = find_nearest_vertex(subject, subjects_dir=subjects_dir, coords=coords, hem=hem, labels=labels, n_jobs=n_jobs)
+    vert_df = vert_df.drop(["hem", "coords"], axis=1)
 
     # Combine with ielvis data
-    ielvis_df = read_ielvis(subject, subjects_dir, squeeze=True).drop("hem",axis=1)
-    elec_df = pd.merge(elec_df, ielvis_df, on="label")
+    #ielvis_df = read_ielvis(subject, subjects_dir, squeeze=True).drop("hem",axis=1)
+    
+    elec_df = pd.merge(elec_df, vert_df, on="label")
 
     # Make a dataframe for the final output
     output_df = pd.DataFrame({"label": elec_df["label"]})
@@ -297,11 +309,14 @@ def elec_to_parc(
     val2roi = {v: k for k, v in roi2val.items()}
 
     # Go through each parcellation
-    from ieeg2nwb.atlases import ATLASES
-    for a in ATLASES.keys():
+    if parc is None:
+        from ieeg2nwb.atlases import ATLASES
+        parc = [[a, k["annot_fname"]] for a,k in ATLASES.items()]
+
+    for atlas, fname in parc:
 
         # If the atlas doesn't exist then create it
-        sample_annot = os.path.join(subjects_dir, 'fsaverage', 'label', 'lh.' + ATLASES[a]["annot_fname"] + '.annot')
+        sample_annot = os.path.join(subjects_dir, 'fsaverage', 'label', 'lh.' + fname + '.annot')
         if not os.path.exists(sample_annot):
             create_indiv_mapping(subject, a, subjects_dir=subjects_dir, n_jobs=n_jobs)
 
@@ -310,8 +325,8 @@ def elec_to_parc(
         atlas_labels["region"] = ""
 
         # Load the atlas
-        lh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'lh.' + ATLASES[a]["annot_fname"] + '.annot')
-        rh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'rh.' + ATLASES[a]["annot_fname"] + '.annot')
+        lh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'lh.' + fname + '.annot')
+        rh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'rh.' + fname + '.annot')
         lh_annot_labels, ctab, lh_annot_names = read_annot(lh_annot_fname)
         rh_annot_labels, _, rh_annot_names = read_annot(rh_annot_fname)
 
@@ -340,11 +355,11 @@ def elec_to_parc(
 
         # Save to tsv file
         if write_to_file:
-            output_fname = os.path.join(subjects_dir, subject, 'elec_recon', subject + '_' + a.upper() + '_AtlasLabels.tsv')
+            output_fname = os.path.join(subjects_dir, subject, 'elec_recon', subject + '_' + atlas.upper() + '_AtlasLabels.tsv')
             atlas_labels.to_csv(output_fname, sep='\t', index=False, columns=["label", "region"], header=False)
 
         # Add to output dataframe
-        output_df[a] = atlas_labels["region"]
+        output_df[atlas] = atlas_labels["region"]
 
     return output_df
 
@@ -520,16 +535,16 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
             h = row["hem"]
             avg_coords[idx, :] = mni305_coords[i, :]
 
-        # Write out to file
-        if write_to_file:
-            from .utils import timenow
-            fname = op.join(subjects_dir, subject, "elec_recon", subject + ".FSAVERAGE")
-            with open(fname, 'w') as file:
-                file.write(timenow() + '\n')
-                file.write("R A S \n")
-                np.savetxt(file, avg_coords, fmt='%.6f', delimiter=' ')
+    # Write out to file
+    if write_to_file:
+        from ieeg2nwb.utils import timenow
+        fname = op.join(subjects_dir, subject, "elec_recon", subject + ".FSAVERAGE")
+        with open(fname, 'w') as file:
+            file.write(timenow() + '\n')
+            file.write("R A S \n")
+            np.savetxt(file, avg_coords, fmt='%.6f', delimiter=' ')
 
-        return avg_coords
+    return avg_coords
 
 
 
