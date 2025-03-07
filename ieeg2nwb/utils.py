@@ -230,3 +230,17 @@ def copy_fsaverage_data(target_fsaverage):
     if not op.isdir(fsaverage_dir):
         shutil.copytree(op.join(_get_data_directory(), 'fsaverage'), fsaverage_dir)
     return fsaverage_dir
+
+
+def timenow() -> str:
+    """Get the current datetime formatted as %d-%b-%Y %H:%M:%S
+    """
+    from datetime import datetime
+
+    # Get the current date and time
+    now = datetime.now()
+
+    # Format the date and time
+    formatted_datetime = now.strftime('%d-%b-%Y %H:%M:%S')
+
+    return formatted_datetime

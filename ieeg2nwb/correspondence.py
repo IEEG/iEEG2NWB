@@ -1,42 +1,56 @@
-# Imports
+#import sys
+#sys.path.append("/Users/noahmarkowitz/Documents/GitHub/iEEG2NWB")
+
+# # Use absolute imports instead
+# from ieeg2nwb.utils import load_nwb_settings
+# from ieeg2nwb.messages import example_usage, additional_notes
+# from ieeg2nwb.io import read_ielvis
+
 import numpy as np
 import pandas as pd
 import os
 import os.path as op
 import re
-import tdt
-import uuid
-from mne.io import read_raw_edf
-from datetime import datetime
-from dateutil.tz import tzlocal
 from datetime import timedelta
-from hdmf.backends.hdf5.h5_utils import H5DataIO
-from hdmf.common.table import DynamicTable
-#from hdmf.data_utils import DataChunkIterator
-# from pynwb import NWBFile, NWBHDF5IO
-# from pynwb.base import TimeSeries
-# from pynwb.ecephys import ElectricalSeries, ElectrodeGroup
-# from pynwb.file import Subject, ElectrodeTable
-# from pynwb.epoch import TimeIntervals
-# from pynwb.device import Device
-# from pynwb.core import ScratchData
-# from ndx_events import LabeledEvents, TTLs
 import json
 import yaml
 import argparse
 import sys
+import glob
 from openpyxl import load_workbook
 from colorama import Back, Style
-from .utils import load_nwb_settings
-from .messages import example_usage, additional_notes
-from .tdt import getTDTStore, read_tdt_ttls
-
+from ieeg2nwb.utils import load_nwb_settings
+from ieeg2nwb.messages import example_usage, additional_notes
+from fileio.ielvis import read_ielvis
 try:
     from mne.externals.pymatreader import read_mat
 except:
     from pymatreader import read_mat
 
 
+
+# Search for excel sheet if none or many
+def _select_excel_file():
+    from PyQt5.QtWidgets import QApplication, QFileDialog
+    import sys
+
+    # Open file dialog to select .xlsx file
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+        
+    file_dialog = QFileDialog()
+    file_dialog.setDirectory(elec_recon_dir)
+    file_dialog.setNameFilter("Excel files (*.xlsx)")
+    file_dialog.setFileMode(QFileDialog.ExistingFile)
+
+    fname = None
+    if file_dialog.exec_():
+        fname = file_dialog.selectedFiles()[0]
+    else:
+        raise Exception("No file selected")
+    
+    return fname
 
 
 """
@@ -87,28 +101,37 @@ For depth use segmentation (aparc+aseg.mgz)
 * fsaverage
 """
 
+# TODO: Create function for creating full correspondence sheet
+
+#%% Setup and configuration
 settings = load_nwb_settings()
 
 freesufer_subject_directory = "/Applications/freesurfer/7.2.0/subjects"
 subject_id = "NS162_02"
 elec_recon_dir = op.join(freesufer_subject_directory, subject_id, "elec_recon")
 
-# Read correspondence sheet
-fname = ""
+# Find correspondence file
+fname = glob.glob(op.join(elec_recon_dir, "*correspondence*.xlsx"))
+if len(fname) != 1:
+    print("Found {} correspondence files, select a correspondence file".format(len(fname)))
+    fname = _select_excel_file()
+else:
+    fname = fname[0]
 
 corr_sheet = pd.read_excel(fname, sheet_name=0,engine='openpyxl')
 
-# Get PTD
-if not op.isfile(op.join(elec_recon_dir, "GreyWhite_classifications.mat")):
-    print("Running PTDIndex")
-    from .ptd import get_ptd_index
-    ptd_all = get_ptd_index(subject_id, subject_dir=freesufer_subject_directory)
-else:
-    ptd_all = read_mat(op.join(elec_recon_dir, "GreyWhite_classifications.mat"))["PTD_idx"]
+# Remove PTD file if it exists to emulate empty
+if op.isfile(op.join(elec_recon_dir, "GreyWhite_classifications.mat")):
+    os.remove(op.join(elec_recon_dir, "GreyWhite_classifications.mat"))
 
-df = pd.DataFrame(ptd_all)
-df = df.drop(labels=["nb_Gpix", "nb_Wpix","offset"], axis=1)
-df.rename(columns={"elec": "label", "PTD": "PTD_index", "location": "FS_Vol"}, inplace=True)
-df["PTD_index"].fillna(999.0)
+# Add breakpoint to inspect data
+# Read iELVis
+ielvis_df = read_ielvis(subject_id, subjects_dir=freesufer_subject_directory)
+
 
 # Get DK atlas volumetric and
+
+
+
+
+

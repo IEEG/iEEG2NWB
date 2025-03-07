@@ -8,8 +8,8 @@ from nibabel.freesurfer.io import read_geometry
 import pandas as pd
 from typing import Union
 import nibabel as nib
-from .io import read_ielvis
-from .utils import _get_data_directory
+from fileio.helpers import _read_electrodeNames, _read_coordinates
+from ieeg2nwb.utils import _get_data_directory
 
 """
 Find nearest
@@ -18,133 +18,6 @@ Find nearest
 * multiple coordinates distance to nearest vertex (subject space)
 """
 
-
-# Shorthands for the different atlases as part of freesurfer"
-ATLASES = {
-    'dk': 'aparc',
-    'd': 'aparc.a2009s',
-    'hcp': 'HCP-MMP1',
-    'y7': 'Yeo2011_7Networks_N1000',
-    'y17': 'Yeo2011_17Networks_N1000'
-}
-
-ATLASES = {
-    "dk": {
-        "annot_fname": "aparc",
-        "description": "Desikan-Killiany atlas",
-        "full_name": "Desikan-Killiany"
-    },
-    "d": {
-        "annot_fname": "aparc.a2009s",
-        "description": "Destrieux atlas",
-        "full_name": "Destrieux"
-    },
-    "hcp": {
-        "annot_fname": "HCP-MMP1",
-        "description": "Human Connectome Project Multi-Modal Parcellation",
-        "full_name": "HCP-MMP1"
-    },
-    "y7": {
-        "annot_fname": "Yeo2011_7Networks_N1000",
-        "description": "Yeo 2011 7 Networks",
-        "full_name": "Yeo7",
-    },
-    "y17": {
-        "annot_fname": "Yeo2011_17Networks_N1000",
-        "description": "Yeo 2011 17 Networks",
-        "full_name": "Yeo17"
-    }
-}
-
-def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
-    """Create individual mapping from fsaverage to subject space of parcellations
-
-    Parameters
-    ----------
-    subject : str
-        Freesurfer subject ID
-    subjects_dir : str | None
-        The Freesurfer subject directory. If None then will take mne.get_config()['SUBJECTS_DIR']
-
-    """
-
-    if parc is not None:
-        ATLASES = {parc[0]: parc[1]}
-
-    atlas_list = ATLASES.keys()
-
-    if subjects_dir is None:
-        from mne import get_config
-        subjects_dir = get_config()['SUBJECTS_DIR']
-
-    if atlas_list is None:
-        atlas_list = ATLASES
-    else:
-        if isinstance(atlas_list, dict):
-            atlas_list = [atlas_list]
-
-        if not isinstance(atlas_list, list):
-            raise TypeError("atlas_list must be a list of dictionaries or a single dictionary")
-
-    for hem in ["lh", "rh"]:
-        global closest_verts
-        closest_verts = []
-        for a in atlas_list.keys():
-
-            global cverts
-            cverts = closest_verts
-
-            annot_fname = hem + '.' + ATLASES[a]["annot_fname"] + '.annot'
-
-            if op.isfile(annot_fname):
-                continue
-
-            fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage', 'label', annot_fname)
-            if not op.exists(fsaverage_annot_file):
-                from .utils import copy_fsaverage_data
-                copy_fsaverage_data(subjects_dir)
-
-            # Get fsaverage data
-            fsaverage_sphere_file = os.path.join(subjects_dir,'fsaverage','surf', hem + '.sphere.reg')
-            fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage','label',annot_fname)
-            fsavg_vert_coords, _ = read_geometry(fsaverage_sphere_file)
-            fsavg_annot_labels, ctab, annot_names = read_annot(fsaverage_annot_file)
-
-            # Get single subject data
-            subject_sphere_file = os.path.join(subjects_dir, subject, 'surf', hem + '.sphere.reg')
-            subject_annot_file = os.path.join(subjects_dir, subject, 'label', annot_fname)
-            sub_vert_coords, _ = read_geometry(subject_sphere_file)
-
-            # Create variables for single subject annot
-            n_sub_verts = sub_vert_coords.shape[0]
-            subject_vert_labels = np.zeros(n_sub_verts)
-
-            def process_vertex(ii):
-                if len(cverts) == 0:
-                    dist = np.sum((fsavg_vert_coords - sub_vert_coords[ii, :]) ** 2, axis=1)
-                    fsavg_closest_vert = dist.argmin()
-                    cverts.append(fsavg_closest_vert)
-                    label = fsavg_annot_labels[fsavg_closest_vert]
-                else:
-                    label = fsavg_annot_labels[cverts[ii]]
-
-                return label
-
-            results = Parallel(n_jobs=n_jobs)(
-                delayed(process_vertex)(ii) for ii in
-                    tqdm(range(n_sub_verts),
-                    desc='Processing %s' % annot_fname,
-                    unit=' vertices',
-                    position=0,
-                    leave=True
-                         )
-            )
-
-            subject_vert_labels[:] = results
-
-            # Write to file
-            write_annot(subject_annot_file, subject_vert_labels.astype('int'), ctab, annot_names)
-            print('----> Writing to file: %s' % subject_annot_file)
 
 
 def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = None,
@@ -172,7 +45,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     Returns
     -------
-    np.array
+    coords : numpy array
         Inflated coordinates.
 
     Notes
@@ -225,7 +98,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     # Write out to file
     if write_to_file:
-        from .misc import timenow
+        from .utils import timenow
         fname = op.join(subjects_dir, subject, "elec_recon", subject + ".INF")
         with open(fname, 'w') as file:
             file.write(timenow() + '\n')
@@ -239,12 +112,14 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
     """
     Find the nearest vertex on the cortical surface to a given set of coordinates.
 
-    Parameters:
+    Parameters
     ----------
     subject : str
         The name of the subject.
     subjects_dir : str, optional
         The directory where the subject's data is stored. If not provided, it will be obtained from the MNE configuration.
+    surf : str
+        Type of surface to find coordinates on ["pial", "inflated", "sphere"], default is "pial"
     coords : array-like, shape (n, 3), optional
         The coordinates of the points for which to find the nearest vertex. If not provided, it will be assumed that the coordinates are already defined.
     hem : str or list, optional
@@ -254,7 +129,7 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
     n_jobs: int, optional
         Number of parallel jobs to run, default is -1
 
-    Returns:
+    Returns
     -------
     df : pandas DataFrame
         A DataFrame containing the following columns:
@@ -264,32 +139,61 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
         - 'hem': The hemisphere associated with each label.
 
     """
+
+    # Check for incorrect input
+    is_none = [x is None for x in [coords, hem, labels]]
+    if None in [coords, hem, labels] and not all(is_none):
+        raise ValueError("If one of [hem,label,coords] is None then all must be None")
+        return None
+
     if subjects_dir is None:
         from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
-    if coords is None:
+
+    if all(is_none):
         coord_type = "PIAL" if surf.lower()=="pial" else "INF"
-        elecs_df = read_ielvis(subject, subjects_dir, squeeze=True)
-        coords = np.stack(elecs_df[coord_type].values)
-        hem = elecs_df["hem"].str.lower().to_list()
-        labels = elecs_df["label"].to_list()
+        elec_recon_dir = os.path.join(subjects_dir, subject, 'elec_recon')
+        coord_fname = os.path.join(elec_recon_dir, subject + '.' + coord_type)
+        elecnames_fname = os.path.join(elec_recon_dir, subject + '.electrodeNames')
+        coords = _read_coordinates(coord_fname)
+        coords = np.array(coords)
+        elecNames = _read_electrodeNames(elecnames_fname)
 
-    n_elecs = coords.shape[0]
+        hem = []
+        labels = []
+        n_elecs = len(elecNames)
+        for el in elecNames:
+            hem.append(el["hem"].lower())
+            labels.append(el["label"])
 
-    if labels is None:
-        labels = np.arange(0, n_elecs, 1)
+    else:
 
-    # Interpret hemispheres
-    if hem == 'l' or hem == 'lh':
-        hem = ['l' for ii in range(n_elecs)]
-    elif hem == 'r' or hem == 'rh':
-        hem = ['r' for ii in range(n_elecs)]
+        if isinstance(coords, list) or isinstance(coords, tuple):
+            coords = np.array(coords)
 
-    # Load data
+        n_elecs = coords.shape[0]
+
+        # Interpret hemispheres
+        if isinstance(hem, str):
+            hem = hem.lower()
+            if hem == 'l' or hem == 'lh':
+                hem = ['l' for ii in range(n_elecs)]
+            elif hem == 'r' or hem == 'rh':
+                hem = ['r' for ii in range(n_elecs)]
+        elif isinstance(hem, list):
+            hem = [h.lower() for h in hem]
+
+    # Load surf data
     surf_dir = os.path.join(subjects_dir, subject, 'surf')
-    lh_surf_file = surf_dir + os.sep + 'lh.' + surf
-    rh_surf_file = surf_dir + os.sep + 'rh.' + surf
+    if isinstance(surf, dict):
+        lh_surf_file = surf["l"]
+        rh_surf_file = surf["r"]
+    else:
+        if surf == "sphere":
+            surf = "sphere.reg"
+        lh_surf_file = surf_dir + os.sep + 'lh.' + surf
+        rh_surf_file = surf_dir + os.sep + 'rh.' + surf
     verts = {}
     verts['l'], _ = read_geometry(lh_surf_file)
     verts['r'], _ = read_geometry(rh_surf_file)
@@ -300,7 +204,13 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
         h = hem[ii]
         dist = np.sqrt(np.sum((verts[h] - coords[ii, :]) ** 2, axis=1))
         closest_vert = dist.argmin()
-        return {'label': labels[ii], 'distance': dist.min(), 'closest_vert': closest_vert, 'hem': h}
+        return {
+            'label': labels[ii], 
+            'distance': dist.min(), 
+            'closest_vert': closest_vert, 
+            'hem': h, 
+            "coords": verts[h][closest_vert]
+            }
 
     # Parallel processing of coordinates
     results = Parallel(n_jobs=n_jobs)(delayed(process_coordinate)(ii) for ii in
@@ -387,6 +297,7 @@ def elec_to_parc(
     val2roi = {v: k for k, v in roi2val.items()}
 
     # Go through each parcellation
+    from ieeg2nwb.atlases import ATLASES
     for a in ATLASES.keys():
 
         # If the atlas doesn't exist then create it
@@ -436,3 +347,191 @@ def elec_to_parc(
         output_df[a] = atlas_labels["region"]
 
     return output_df
+
+def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=None, subdural=None, n_jobs=-1, write_to_file=True):
+    """
+    Convert coordinates from subject space to fsaverage space.
+
+    Parameters
+    ----------
+    subject : str
+        The subject ID.
+    subjects_dir : str, optional
+        The Freesurfer subject directory. If not provided, it will be read from the MNE config file.
+    coords : np.array, optional
+        Input coordinates. If not provided, it will be read from the .PIAL file in the subject's directory.
+    hem : Union[list, np.array], optional
+        Hemisphere of each electrode. Must be specified if coords are passed in.
+    labels : Union[list, np.array], optional
+        Names of electrodes. Must be specified if coords are passed in.
+    n_jobs: int, optional
+        Number of parallel jobs to run, default is -1
+
+    Returns
+    -------
+    np.array
+        fsaverage coordinates.
+
+    Notes
+    -----
+    - If `subjects_dir` is not provided, it will be read from the MNE config file.
+    - If `coords` is not provided, it will be read from the .PIAL file in the subject's directory.
+    - If `labels` is not provided, it will be read from the electrode data in the subject's directory.
+    - The function converts the coordinates from the subject space to the fsaverage space using the nearest vertex mapping.
+    - The fsaverage coordinates are returned as a numpy array.
+
+    """
+    from fileio.ielvis import _read_electrodeNames, _read_coordinates
+    from nibabel.freesurfer.io import read_geometry
+
+    if subjects_dir is None:
+        from mne import get_config
+
+        subjects_dir = get_config()['SUBJECTS_DIR']
+
+    # If coordinates not specified then plot subject using iELVis data
+    if labels is None:
+        elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
+        elecNamesFile = op.join(elecReconDir, subject + '.electrodeNames')
+        elecNames = _read_electrodeNames(elecNamesFile)
+        labels = []
+        subdural = []
+        hem = []
+        for elec in elecNames:
+            labels.append(elec["label"])
+            subdural.append(elec["spec"] == "D")
+            hem.append(elec["hem"])
+        coords = _read_coordinates(op.join(elecReconDir, subject + '.PIAL'))
+    else:
+        if coords is None:
+            raise ValueError("coords must not be None if labels is specified")
+        elif hem is None:
+            raise ValueError("hem must not be None if labels is specified")
+        elif subdural is None:
+            raise ValueError("subdural must not be None if labels is specified")
+        elif coords is None:
+            raise ValueError("coords must not be None if labels is specified")
+
+
+    # Store average coordinates here
+    avg_coords = np.zeros((len(labels), 3))
+
+    elecs_df = pd.DataFrame({"labels": labels, "hem": hem, "subdural": subdural, "native": coords})
+
+    # For each electrode, find nearest vertex on native brain then on average brain
+    if any(not i for i in subdural):
+
+        # Take subset but keep original index for later
+        ecog_elecs = elecs_df.loc[~elecs_df["subdural"], :]
+        orig_index = ecog_elecs.index
+        ecog_elecs = ecog_elecs.reset_index(drop=True)
+        ecog_elecs.loc[:, "orig_index"] = orig_index
+
+        # Find nearest vertex on native brain
+        nearest_verts_df = find_nearest_vertex(
+            subject,
+            subjects_dir=subjects_dir,
+            coords=ecog_elecs["pial"].to_list(),
+            hem=ecog_elecs["hem"],
+            labels=ecog_elecs["labels"],
+            surf="pial",
+            n_jobs=n_jobs
+        )
+
+        # Get the closest vertices
+        closest_verts = nearest_verts_df["closest_vert"].to_list()
+
+        # Get sub spheres data
+        surf_dir = op.join(subjects_dir, subject, 'surf')
+        lh_sub_sphere_file = surf_dir + os.sep + 'lh.sphere.reg'
+        rh_sub_sphere_file = surf_dir + os.sep + 'rh.sphere.reg'
+        verts = {}
+        verts['l'], _ = read_geometry(lh_sub_sphere_file)
+        verts['r'], _ = read_geometry(rh_sub_sphere_file)
+
+        # Get the coordinates on spheres
+        sphere_coords = np.zeros((len(ecog_elecs), 3))
+        for i, row in ecog_elecs.iterrows(): #range(len(ecog_elecs)):
+            h = row["hem"]
+            sphere_coords[i, :] = verts[h][closest_verts[i]]
+
+        # Now find the nearest vertex on fsaverage
+        nearest_verts_avg = find_nearest_vertex(
+            "fsaverage",
+            subjects_dir=subjects_dir,
+            coords=sphere_coords,
+            hem=ecog_elecs["hem"],
+            labels=ecog_elecs["labels"],
+            surf="sphere",
+            n_jobs=n_jobs
+        )
+        del verts
+
+        # Get fsaverage data
+        lh_avg_pial_file = op.join(subjects_dir, 'fsaverage', 'surf', 'lh.pial')
+        rh_avg_pial_file = op.join(subjects_dir, 'fsaverage', 'surf', 'rh.pial')
+        avg_verts = {}
+        avg_verts['l'], _ = read_geometry(lh_avg_pial_file)
+        avg_verts['r'], _ = read_geometry(rh_avg_pial_file)
+
+        #Get average pial coordinates on average brain
+        for i, row in ecog_elecs.iterrows():
+            idx = row["orig_index"]
+            h = row["hem"].lower()
+            avg_coords[idx, :] = avg_verts[h][nearest_verts_avg["closest_vert"][i]]
+
+        del avg_verts
+
+    # Check for subdural electrodes
+    if any(i for i in subdural):
+
+        postimp_file = op.join(elecReconDir, subject + '.POSTIMPLANT')
+        if not op.isfile(postimp_file):
+            postimp_file = op.join(elecReconDir, subject + '.CT')
+        postimp_coords = _read_coordinates(postimp_file)
+
+        elecs_df.loc[:, "postimp"] = postimp_coords
+
+        # Take subset but keep original index for later
+        subdural_elecs = elecs_df.loc[elecs_df["subdural"], :]
+        orig_index = subdural_elecs.index
+        subdural_elecs = subdural_elecs.reset_index(drop=True)
+        subdural_elecs.loc[:, "orig_index"] = orig_index
+        postimp_coords = np.array(subdural_elecs["postimp"].to_list())
+
+        # Read orig.mgz and get transformation info: vox2ras and tkrvox2ras
+        import nibabel as nib
+        mri = nib.load(op.join(subjects_dir, subject, 'mri', 'orig.mgz'))
+        Norig = mri.header.get_vox2ras()
+        Torig = mri.header.get_vox2ras_tkr()
+
+        # Read talairach.xfm
+        from .fileio.ielvis import freesurfer_read_xfm
+        tal_xfm = freesurfer_read_xfm(op.join(subjects_dir, subject, "mri", "transforms", 'talairach.xfm'))
+
+        # For readability break the calculation into a few lines
+        n_elec = subdural_elecs.shape[0]
+        p2 = np.linalg.lstsq(Torig, np.vstack((postimp_coords.T, np.ones((1, n_elec)))), rcond=1)[0]
+        mni305_coords = (tal_xfm @ Norig @ p2).T
+
+        #Get average pial coordinates on average brain
+        for i, row in subdural_elecs.iterrows():
+            idx = row["orig_index"]
+            h = row["hem"]
+            avg_coords[idx, :] = mni305_coords[i, :]
+
+        # Write out to file
+        if write_to_file:
+            from .utils import timenow
+            fname = op.join(subjects_dir, subject, "elec_recon", subject + ".FSAVERAGE")
+            with open(fname, 'w') as file:
+                file.write(timenow() + '\n')
+                file.write("R A S \n")
+                np.savetxt(file, avg_coords, fmt='%.6f', delimiter=' ')
+
+        return avg_coords
+
+
+
+
+

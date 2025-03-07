@@ -4,16 +4,22 @@ from tqdm import tqdm
 import mne
 import nibabel as nib
 from scipy.io import savemat
-from .io import read_ielvis
-from .utils import read_aseg_csv
-
+from ieeg2nwb.utils import read_aseg_csv
+from fileio.helpers import _read_coordinates, _read_electrodeNames
 
 def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     if subjects_dir is None:
-        from mne import get_config
-        subjects_dir = get_config()['SUBJECTS_DIR']
+        subjects_dir = mne.get_config()['SUBJECTS_DIR']
 
-    elecs_df = read_ielvis(subject=subject, subjects_dir=subjects_dir, squeeze=True)
+    # Get LEPTOVOX coordinates
+    elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
+    elecNamesFile = op.join(elecReconDir, subject + '.electrodeNames')
+    elecNames_tmp = _read_electrodeNames(elecNamesFile)
+    elecNames = [f"{el['label']}_{el['spec']}_{el['hem']}" for el in elecNames_tmp]    
+    coordFname = op.join(elecReconDir, subject + '.LEPTOVOX')
+    coordinates = _read_coordinates(coordFname)
+    
+    #elecs_df = read_ielvis(subject=subject, subjects_dir=subjects_dir, squeeze=True)
 
     # Read the aparc+aseg.mgz file
     aparc_aseg_file = op.join(subjects_dir, subject, 'mri', 'aparc+aseg.mgz')
@@ -43,9 +49,11 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     }
 
     # Iterate over electrodes
-    pbar = tqdm(total=elecs_df.shape[0], unit=" Electrode", desc="Finding PTD")
-    for i, row in elecs_df.iterrows():
-        coords = np.round(row['LEPTOVOX']).astype(int)
+    pbar = tqdm(total=len(elecNames), unit=" Electrode", desc="Finding PTD")
+    for i in range(len(elecNames)):
+
+        label = elecNames[i]
+        coords = np.round(coordinates[i]).astype(int)
 
         xyz = np.array([coords[0], coords[1], aparc_aseg_data.shape[2] - coords[2]])
 
@@ -83,7 +91,7 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
         ptd_val = (n_gm - n_wm) / (n_gm + n_wm + 1e-6)
 
         # Collect all info
-        PTD_idx["elec"].append(row['label'])
+        PTD_idx["elec"].append(label)
         PTD_idx["location"].append(aparc_aseg_roi)
         PTD_idx["nb_Gpix"].append(n_gm)
         PTD_idx["nb_Wpix"].append(n_wm)
@@ -96,8 +104,6 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     savemat(fname, {"PTD_idx": PTD_idx})
 
     return PTD_idx
-
-
 
 
 

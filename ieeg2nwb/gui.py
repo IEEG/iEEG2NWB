@@ -13,6 +13,8 @@ import tdt
 import yaml
 from .utils import load_nwb_settings
 
+# TODO: Integrate with new ieeg2nwb_2
+
 def isempty(variable):
     if isinstance(variable,dict):
         return len(variable.keys()) == 0
@@ -113,9 +115,13 @@ class GUI(QMainWindow):
         raw_lay.addRow(QLabel('Raw Data'),block)
         self._data['block'] = block
 
-        labelfile = DataEntry('(ex. NS001_correspondence.xlsx)',isFile=True,tooltip='Correspondence sheet')
-        raw_lay.addRow(QLabel('Labelfile'), labelfile)
-        self._data['labelfile'] = labelfile
+        # labelfile = DataEntry('(ex. NS001_correspondence.xlsx)',isFile=True,tooltip='Correspondence sheet')
+        # raw_lay.addRow(QLabel('Labelfile'), labelfile)
+        # self._data['labelfile'] = labelfile
+
+        freesurfer = DataEntry('(ex. /freesurfer/subjects/NS001)',isFile=True,tooltip='Freesurfer subject directory')
+        raw_lay.addRow(QLabel('freesurfer'), freesurfer)
+        self._data['freesurfer_subject_folder'] = freesurfer
 
         neurodataEntry = DataEntry('EEG1, EEG2, RSn1', isFile=False, islist=True, tooltip='Comma-separated list of stores that contain the neural data that pertain to the correspondence sheet (only for TDT data). Must all have the same fs')
         raw_lay.addRow(QLabel('Neurodata'), neurodataEntry)
@@ -335,10 +341,11 @@ class GUI(QMainWindow):
                 self._data[k].reset()
 
     def run(self):
-        from .iEEG2NWB import iEEG2NWB
+        #from .iEEG2NWB import iEEG2NWB
+        from .converter_2 import IEEG2NWB
         params = self.getData()
-        inwb = iEEG2NWB()
-        inwb.parse_params(params)
+        converter = IEEG2NWB()
+        converter.parse_params(params)
 
     def synthOutput(self):
         outputInfo = self._outputInfo
