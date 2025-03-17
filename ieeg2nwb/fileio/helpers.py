@@ -80,14 +80,14 @@ def _read_atlas_labels(atlasFname):
 def _read_ielvis_base(subject, subjects_dir):
     """Read in a few basic iELVis file that require no additional processing to be done"""
 
-        elec_recon_dir = os.path.join(subjects_dir, subject, 'elec_recon')
-        elecnames_fname = os.path.join(elec_recon_dir, subject + '.electrodeNames')
-        elecs_df = pd.DataFrame(_read_electrodeNames(elecnames_fname))
-        
-        coord_types = ['LEPTO','LEPTOVOX','PIAL','PIALVOX']
-        for coord in coord_types:
-            coord_fname = os.path.join(elec_recon_dir, subject + '.' + coord)
-            coords = _read_coordinates(coord_fname)
-            elecs_df[coord] = coords
+    elec_recon_dir = os.path.join(subjects_dir, subject, 'elec_recon')
+    elecnames_fname = os.path.join(elec_recon_dir, subject + '.electrodeNames')
+    elecs_df = pd.DataFrame(_read_electrodeNames(elecnames_fname))
+    
+    coord_types = ['LEPTO','LEPTOVOX','PIAL','PIALVOX']
+    for coord in coord_types:
+        coord_fname = os.path.join(elec_recon_dir, subject + '.' + coord)
+        coords = _read_coordinates(coord_fname)
+        elecs_df[coord] = coords
 
-        return elecs_df
+    return elecs_df

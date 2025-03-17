@@ -38,4 +38,10 @@ We are grateful for their support!
 
 # TODO
 
-* 
+* Finish `read_ielvis()` full
+
+* Finish new `IEEG2NWB` class
+
+* Complete unit tests
+
+* Create sphinx docs

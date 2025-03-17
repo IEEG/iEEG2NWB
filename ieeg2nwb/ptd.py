@@ -5,7 +5,7 @@ import mne
 import nibabel as nib
 from scipy.io import savemat
 from ieeg2nwb.utils import read_aseg_csv
-from fileio.helpers import _read_coordinates, _read_electrodeNames
+from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames
 
 def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     if subjects_dir is None:

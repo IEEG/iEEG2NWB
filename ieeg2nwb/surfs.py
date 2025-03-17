@@ -8,7 +8,7 @@ from nibabel.freesurfer.io import read_geometry
 import pandas as pd
 from typing import Union
 import nibabel as nib
-from fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
+from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
 from ieeg2nwb.utils import _get_data_directory
 
 """
@@ -65,7 +65,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     # If coordinates not specified then plot subject using iELVis data
     if coords is None:
-        elecs_df = read_ielvis(op.join(subjects_dir, subject))
+        elecs_df = _read_ielvis_base(op.join(subjects_dir, subject))
         coords = np.array(elecs_df['PIAL'].to_list())
         labels = elecs_df['label'].to_list()
         hem = [h.lower() for h in elecs_df['hem'].to_list()]
@@ -318,7 +318,7 @@ def elec_to_parc(
         # If the atlas doesn't exist then create it
         sample_annot = os.path.join(subjects_dir, 'fsaverage', 'label', 'lh.' + fname + '.annot')
         if not os.path.exists(sample_annot):
-            create_indiv_mapping(subject, a, subjects_dir=subjects_dir, n_jobs=n_jobs)
+            create_indiv_mapping(subject, atlas, subjects_dir=subjects_dir, n_jobs=n_jobs)
 
         # Create a dataframe to save results
         atlas_labels = elec_df.copy()
@@ -396,17 +396,16 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
     - The fsaverage coordinates are returned as a numpy array.
 
     """
-    from fileio.ielvis import _read_electrodeNames, _read_coordinates
     from nibabel.freesurfer.io import read_geometry
 
     if subjects_dir is None:
         from mne import get_config
 
         subjects_dir = get_config()['SUBJECTS_DIR']
+        elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
 
     # If coordinates not specified then plot subject using iELVis data
     if labels is None:
-        elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
         elecNamesFile = op.join(elecReconDir, subject + '.electrodeNames')
         elecNames = _read_electrodeNames(elecNamesFile)
         labels = []
@@ -515,13 +514,12 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
         postimp_coords = np.array(subdural_elecs["postimp"].to_list())
 
         # Read orig.mgz and get transformation info: vox2ras and tkrvox2ras
-        import nibabel as nib
         mri = nib.load(op.join(subjects_dir, subject, 'mri', 'orig.mgz'))
         Norig = mri.header.get_vox2ras()
         Torig = mri.header.get_vox2ras_tkr()
 
         # Read talairach.xfm
-        from .fileio.ielvis import freesurfer_read_xfm
+        from ieeg2nwb.fileio.ielvis import freesurfer_read_xfm
         tal_xfm = freesurfer_read_xfm(op.join(subjects_dir, subject, "mri", "transforms", 'talairach.xfm'))
 
         # For readability break the calculation into a few lines

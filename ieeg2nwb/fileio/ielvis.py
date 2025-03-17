@@ -4,11 +4,18 @@ import numpy as np
 import os.path as op
 from tqdm import tqdm
 import nibabel as nib
-from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated
+from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vertex, elec_to_parc
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
 
-def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, full=False):
+subject="NS162_02"
+subjects_dir=None
+squeeze=False
+write_missing=True
+full=True
+n_jobs=-1
+
+def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, full=False, n_jobs=-1):
     """Function to read iELVis output in elec_recon directory
 
     Parameters
@@ -43,13 +50,11 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
 
         if not op.isfile(coordFname) and write_missing:
                 if c == "INF":
-                    pial_to_inflated(subject, subjects_dir=subjects_dir, write_to_file=True)
+                    pial_to_inflated(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
                 elif c == "FSAVERAGE":
-                    sub_to_fsaverage(subject, subjects_dir=subjects_dir, write_to_file=True)
+                    sub_to_fsaverage(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
         elif not op.isfile(coordFname):
             continue
-
-        coordFname = os.path.join(elecReconDir, subject + '.inf')
 
         coords = _read_coordinates(coordFname)
 
@@ -86,15 +91,41 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
             new_col_name = atlas_info["full_name"].lower() + "_atlas"
             atlas_labels = _read_atlas_labels(atlas_fname).rename(columns={'region': new_col_name})
             elecTable = pd.merge(elecTable, atlas_labels, on='label')
+        elif not write_missing:
+            _ = elec_to_parc(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
 
 
     # If user species "full" then get all other coordinates that are snapped to surface
-    # if full:
+    if full:
 
-    #     from ieeg2nwb.surfs import sub_to_fsaverage, find_nearest_vertex, pial_to_inflated
+        from ieeg2nwb.surfs import find_nearest_vertex
 
-    #     # Find nearest vertex for each contact
-    #     nearest_verts = find_nearest_vertex()
+        # Find nearest vertex for each contact
+        if squeeze:
+            pial_coords = elecTable["PIAL"].to_list()
+            fsavg_coords = elecTable["FSAVERAGE"].to_list()
+        else:
+            pial_coords = elecTable[["PIAL_x", "PIAL_y", "PIAL_z"]].to_numpy()
+            fsavg_coords = elecTable[["FSAVERAGE_x", "FSAVERAGE_y", "FSAVERAGE_z"]].to_numpy()
+
+        # Will be used a lot
+        hem = elecTable["hem"].to_list()
+        labels = elecTable["label"].to_list()
+
+        # Snap all electrodes to pial surface
+        nearest_verts = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=pial_coords, hem=hem, labels=labels, n_jobs=n_jobs)
+        depth_pial = np.array(nearest_verts.loc[:, "coords"].to_list())
+
+        # Get the inflated coordinated for each electrodes
+        depth_inf = pial_to_inflated(subject, subjects_dir=subjects_dir, coords=depth_pial, hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
+
+        # Coordinates for FSAverage inflated
+        fsavg_inf = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=fsavg_coords, hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
+
+        # Create fsavg_depth_pial from depth_pial in native space, treat all electrodes as subdural
+        is_subdural = [True] * elecTable.shape[0]
+        fsavg_depth_pial = sub_to_fsaverage(subject, subjects_dir=subjects_dir, coords=depth_pial.tolist(), hem=hem, labels=labels, subdural=is_subdural)
+
 
 
 
