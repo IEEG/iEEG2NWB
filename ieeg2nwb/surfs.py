@@ -400,9 +400,9 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
 
     if subjects_dir is None:
         from mne import get_config
-
         subjects_dir = get_config()['SUBJECTS_DIR']
-        elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
+    
+    elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
 
     # If coordinates not specified then plot subject using iELVis data
     if labels is None:
@@ -519,7 +519,7 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
         Torig = mri.header.get_vox2ras_tkr()
 
         # Read talairach.xfm
-        from ieeg2nwb.fileio.ielvis import freesurfer_read_xfm
+        from ieeg2nwb.fileio.freesurfer import freesurfer_read_xfm
         tal_xfm = freesurfer_read_xfm(op.join(subjects_dir, subject, "mri", "transforms", 'talairach.xfm'))
 
         # For readability break the calculation into a few lines
@@ -544,6 +544,134 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
 
     return avg_coords
 
+
+def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
+    """Create individual mapping from fsaverage to subject space of parcellations
+
+    Parameters
+    ----------
+    subject : str
+        Freesurfer subject ID
+    parc : str
+        The parcellated atlas to create an individual mapping for. Can be shorthands "y7", "y17" or "hcp".
+        Or can be the atlas file name such as "Yeo2011_7Networks_N1000" or "HCP-MMP1"
+    subjects_dir : str | None
+        The Freesurfer subject directory. If None then will take mne.get_config()['SUBJECTS_DIR']
+
+    """
+
+    subject = "NS162_02"
+    subjects_dir=None
+    parc=None
+    n_jobs = -1
+
+    from ieeg2nwb.atlases import ATLASES
+    if parc is not None:
+        parc = [[a, k["annot_fname"]] for a,k in ATLASES.items()]
+        ATLASES = {parc[0]: parc[1]}
+
+    atlas_list = ATLASES.keys()
+
+    if subjects_dir is None:
+        from mne import get_config
+        subjects_dir = get_config()['SUBJECTS_DIR']
+
+    if atlas in ATLASES.keys():
+        atlas = ATLASES[atlas]
+    if atlas_list is None:
+        atlas_list = ATLASES
+    else:
+        if isinstance(atlas_list, dict):
+            atlas_list = [atlas_list]
+
+#         if not isinstance(atlas_list, list):
+#             raise TypeError("atlas_list must be a list of dictionaries or a single dictionary")
+
+#     for hem in ["lh", "rh"]:
+#         global closest_verts
+#         closest_verts = []
+#         for a in atlas_list.keys():
+
+#     # Run the loop in parallel using joblib
+#     for hem in ['lh', 'rh']:
+#             global cverts
+#             cverts = closest_verts
+
+#         annot_fname = hem + '.' + atlas + '.annot'
+#             annot_fname = hem + '.' + ATLASES[a]["annot_fname"] + '.annot'
+
+#         # Get fsaverage data
+#         fsaverage_sphere_file = os.path.join(subjects_dir,'fsaverage','surf', hem + '.sphere.reg')
+#         fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage','label',annot_fname)
+#         fsavg_vert_coords, _ = read_geometry(fsaverage_sphere_file)
+#         fsavg_annot_labels, ctab, annot_names = read_annot(fsaverage_annot_file)
+#             if op.isfile(annot_fname):
+#                 continue
+
+#         # Get single subject data
+#         subject_sphere_file = os.path.join(subjects_dir, subject, 'surf', hem + '.sphere.reg')
+#         subject_annot_file = os.path.join(subjects_dir, subject, 'label', annot_fname)
+#         sub_vert_coords, _ = read_geometry(subject_sphere_file)
+#             fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage', 'label', annot_fname)
+#             if not op.exists(fsaverage_annot_file):
+#                 from .utils import copy_fsaverage_data
+#                 copy_fsaverage_data(subjects_dir)
+
+#         # Create variables for single subject annot
+#         n_sub_verts = sub_vert_coords.shape[0]
+#         subject_vert_labels = np.zeros(n_sub_verts)
+#             # Get fsaverage data
+#             fsaverage_sphere_file = os.path.join(subjects_dir,'fsaverage','surf', hem + '.sphere.reg')
+#             fsaverage_annot_file = os.path.join(subjects_dir, 'fsaverage','label',annot_fname)
+#             fsavg_vert_coords, _ = read_geometry(fsaverage_sphere_file)
+#             fsavg_annot_labels, ctab, annot_names = read_annot(fsaverage_annot_file)
+
+#         def process_vertex(ii):
+#             dist = np.sum((fsavg_vert_coords - sub_vert_coords[ii, :]) ** 2, axis=1)
+#             fsavg_closest_vert = dist.argmin()
+#             return fsavg_annot_labels[fsavg_closest_vert]
+#             # Get single subject data
+#             subject_sphere_file = os.path.join(subjects_dir, subject, 'surf', hem + '.sphere.reg')
+#             subject_annot_file = os.path.join(subjects_dir, subject, 'label', annot_fname)
+#             sub_vert_coords, _ = read_geometry(subject_sphere_file)
+
+#         results = Parallel(n_jobs=n_jobs)(
+#             delayed(process_vertex)(ii) for ii in tqdm(range(n_sub_verts), desc='Processing %s' % annot_fname, unit=' vertices', position=0, leave=True)
+#         )
+#             # Create variables for single subject annot
+#             n_sub_verts = sub_vert_coords.shape[0]
+#             subject_vert_labels = np.zeros(n_sub_verts)
+
+#         subject_vert_labels[:] = results
+#             def process_vertex(ii):
+#                 if len(cverts) == 0:
+#                     dist = np.sum((fsavg_vert_coords - sub_vert_coords[ii, :]) ** 2, axis=1)
+#                     fsavg_closest_vert = dist.argmin()
+#                     cverts.append(fsavg_closest_vert)
+#                     label = fsavg_annot_labels[fsavg_closest_vert]
+#                 else:
+#                     label = fsavg_annot_labels[cverts[ii]]
+
+#         # Write to file
+#         write_annot(subject_annot_file, subject_vert_labels.astype('int'), ctab, annot_names)
+#         print('----> Writing to file: %s' % subject_annot_file)
+#                 return label
+
+#             results = Parallel(n_jobs=n_jobs)(
+#                 delayed(process_vertex)(ii) for ii in
+#                     tqdm(range(n_sub_verts),
+#                     desc='Processing %s' % annot_fname,
+#                     unit=' vertices',
+#                     position=0,
+#                     leave=True
+#                          )
+#             )
+
+#             subject_vert_labels[:] = results
+
+#             # Write to file
+#             write_annot(subject_annot_file, subject_vert_labels.astype('int'), ctab, annot_names)
+#             print('----> Writing to file: %s' % subject_annot_file)
 
 
 

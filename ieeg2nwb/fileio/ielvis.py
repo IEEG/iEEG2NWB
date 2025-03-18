@@ -4,6 +4,7 @@ import numpy as np
 import os.path as op
 from tqdm import tqdm
 import nibabel as nib
+import mne
 from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vertex, elec_to_parc
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
@@ -91,14 +92,12 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
             new_col_name = atlas_info["full_name"].lower() + "_atlas"
             atlas_labels = _read_atlas_labels(atlas_fname).rename(columns={'region': new_col_name})
             elecTable = pd.merge(elecTable, atlas_labels, on='label')
-        elif not write_missing:
-            _ = elec_to_parc(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
+        #elif not write_missing:
+        #    _ = elec_to_parc(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
 
 
     # If user species "full" then get all other coordinates that are snapped to surface
     if full:
-
-        from ieeg2nwb.surfs import find_nearest_vertex
 
         # Find nearest vertex for each contact
         if squeeze:
@@ -112,57 +111,35 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
         hem = elecTable["hem"].to_list()
         labels = elecTable["label"].to_list()
 
+        new_coords = {}
+
         # Snap all electrodes to pial surface
         nearest_verts = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=pial_coords, hem=hem, labels=labels, n_jobs=n_jobs)
-        depth_pial = np.array(nearest_verts.loc[:, "coords"].to_list())
+        new_coords["depth_pial"] = np.array(nearest_verts.loc[:, "coords"].to_list())
 
         # Get the inflated coordinated for each electrodes
-        depth_inf = pial_to_inflated(subject, subjects_dir=subjects_dir, coords=depth_pial, hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
+        new_coords["depth_inf"] = pial_to_inflated(subject, subjects_dir=subjects_dir, coords=new_coords["depth_pial"], hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
 
         # Coordinates for FSAverage inflated
-        fsavg_inf = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=fsavg_coords, hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
+        new_coords["fsaverage_inf"] = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=fsavg_coords, hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
 
         # Create fsavg_depth_pial from depth_pial in native space, treat all electrodes as subdural
         is_subdural = [True] * elecTable.shape[0]
-        fsavg_depth_pial = sub_to_fsaverage(subject, subjects_dir=subjects_dir, coords=depth_pial.tolist(), hem=hem, labels=labels, subdural=is_subdural)
+        new_coords["fsaverage_depth_pial"] = sub_to_fsaverage(subject, subjects_dir=subjects_dir, coords=new_coords["depth_pial"].tolist(), hem=hem, labels=labels, subdural=is_subdural)
 
+        # coordinates of electrodes snapped to fsaverage inflated surface
+        new_coords["fsaverage_depth_inf"]  = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=new_coords["fsaverage_depth_pial"] , hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
 
+        # Add the new coordinates to the table
+        for colname, coords in new_coords.items():
+
+            if not squeeze:
+                coords = np.array(coords)
+                for ii, xyz in enumerate(["x", "y", "z"]):
+                    c_xyz = colname + "_" + xyz
+                    elecTable[c_xyz] = coords[:, ii]
+            else:
+                elecTable[colname] = coords
 
 
     return elecTable
-
-def freesurfer_read_xfm(xfm_file):
-    """Read a Freesurfer transformation matrix file
-
-    Parameters
-    ----------
-    xfm_file : str
-        The path to the transformation matrix file
-
-    Returns
-    -------
-    xfm : np.ndarray
-        The transformation matrix
-    """
-
-    # Initialize variables
-    matrix_lines = []
-    matrix_start = False
-
-    # Open and read the file
-    with open(xfm_file, 'r') as file:
-        for line in file:
-            if "Linear_Transform" in line:
-                matrix_start = True
-                continue  # Skip the "Linear Transform" line
-
-            if matrix_start:
-                # Split the line into components (assuming space-separated values)
-                matrix_lines.append(list(map(float, line.replace(";", "").split())))
-                # Stop after reading 4 lines
-                if len(matrix_lines) == 4:
-                    break
-
-    # Convert the list of lists into a NumPy array
-    matrix = np.array(matrix_lines)
-    return matrix

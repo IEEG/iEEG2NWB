@@ -45,3 +45,7 @@ We are grateful for their support!
 * Complete unit tests
 
 * Create sphinx docs
+
+* `pial_to_inflated()` doesn't need labels arg
+
+* `sub_to_fsaverage()` doesn't need labels arg
