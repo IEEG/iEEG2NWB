@@ -1,6 +1,7 @@
 import nibabel as nib
 import numpy as np
 import os
+from mne import get_config
 
 def annot_to_volume(subject, annot_name, subjects_dir=None):
     """
@@ -15,7 +16,6 @@ def annot_to_volume(subject, annot_name, subjects_dir=None):
     """
 
     if subjects_dir is None:
-        from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
     
     hemis = ['lh', 'rh']

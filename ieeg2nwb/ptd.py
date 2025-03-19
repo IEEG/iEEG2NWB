@@ -7,7 +7,32 @@ from scipy.io import savemat
 from ieeg2nwb.utils import read_aseg_csv
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames
 
-def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
+subject = "NS162_02"
+offset = 2
+subjects_dir = None
+write_to_file = True
+
+def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None, write_to_file: bool =True):
+    """Find Proximal Tissue Density of each sensor for a subject
+
+    Parameters
+    ----------
+    subject : str
+        Freesurfer subject ID
+    offset : float, optional
+        Area of tissue for which to calculate PTD by default 2
+    subjects_dir : str, optional
+        The directory where the subject's data is stored. If not provided, it will be obtained from the MNE configuration
+    write_to_file : bool, optional
+        Save results to mat file, by default True
+
+    Returns
+    -------
+    dict
+        Contains the following keys: ["elec", "location", "nb_Gpix", "nb_Wpix", "offset", "PTD"]
+        Matches the MATLAB style output
+    """
+
     if subjects_dir is None:
         subjects_dir = mne.get_config()['SUBJECTS_DIR']
 
@@ -39,7 +64,7 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     val2roi = {v: k for k, v in roi2val.items()}
 
     # dict for rois for each electrode
-    PTD_idx = {
+    ptd_idx = {
         "elec": [],
         "location": [],
         "nb_Gpix": [],
@@ -49,18 +74,15 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
     }
 
     # Iterate over electrodes
-    pbar = tqdm(total=len(elecNames), unit=" Electrode", desc="Finding PTD")
-    for i in range(len(elecNames)):
+    for label, coords in tqdm(zip(elecNames, coordinates), desc="Finding PTD", unit="Electrode", position=0, leave=True):
 
-        label = elecNames[i]
-        coords = np.round(coordinates[i]).astype(int)
+        coords = np.round(coords).astype(int)
 
+        # Get Voxel coordinates
         xyz = np.array([coords[0], coords[1], aparc_aseg_data.shape[2] - coords[2]])
 
         # Get the label of the voxel
         aparc_aseg_vox_val = aparc_aseg_data[tuple(xyz)]
-        # aseg_vox_val = aseg_data[tuple(xyz)]
-        # aseg_roi = val2roi[aseg_vox_val]
         aparc_aseg_roi = val2roi[aparc_aseg_vox_val]
 
         # Define the range of x, y, z coordinates for the cube around xyz
@@ -91,19 +113,21 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None):
         ptd_val = (n_gm - n_wm) / (n_gm + n_wm + 1e-6)
 
         # Collect all info
-        PTD_idx["elec"].append(label)
-        PTD_idx["location"].append(aparc_aseg_roi)
-        PTD_idx["nb_Gpix"].append(n_gm)
-        PTD_idx["nb_Wpix"].append(n_wm)
-        PTD_idx["PTD"].append(ptd_val)
-
-        pbar.update(1)
+        ptd_idx["elec"].append(label)
+        ptd_idx["location"].append(aparc_aseg_roi)
+        ptd_idx["nb_Gpix"].append(n_gm)
+        ptd_idx["nb_Wpix"].append(n_wm)
+        ptd_idx["PTD"].append(ptd_val)
 
     # Save
-    fname = op.join(subjects_dir, subject, "elec_recon", "GreyWhite_classifications.mat")
-    savemat(fname, {"PTD_idx": PTD_idx})
-
-    return PTD_idx
+    if write_to_file:
+        fname = op.join(subjects_dir, subject, "elec_recon", "GreyWhite_classifications.mat")
+        tmp = ptd_idx.copy()
+        tmp["elec"] = np.array(tmp["elec"], dtype=object)
+        tmp["location"] = np.array(tmp["location"], dtype=object)
+        savemat(fname, {"PTD_idx": tmp})
+        
+    return ptd_idx
 
 
 

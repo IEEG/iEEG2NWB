@@ -8,6 +8,7 @@ import mne
 from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vertex, elec_to_parc
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
+from ieeg2nwb.atlases import ATLASES
 
 def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, full=False, n_jobs=-1):
     """Function to read iELVis output in elec_recon directory

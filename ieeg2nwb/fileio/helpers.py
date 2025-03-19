@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os.path as op
 from scipy.io import savemat, loadmat
+from pymatreader import read_mat
 from ieeg2nwb.utils import read_aseg_csv
 
 
@@ -56,11 +57,9 @@ def _read_coordinates(coordFname):
 
 def _read_ptd(ptdFname):
     """Read PTD values from a .mat file"""
-    ptd_tmp = loadmat(
+    ptd_tmp = read_mat(
         ptdFname,
         variable_names=['PTD_idx'],
-        #squeeze_me=True,
-        simplify_cells=True
     )
 
     ptd = ptd_tmp['PTD_idx']
