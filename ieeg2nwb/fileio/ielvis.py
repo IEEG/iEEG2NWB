@@ -9,13 +9,6 @@ from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vert
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
 
-subject="NS162_02"
-subjects_dir=None
-squeeze=False
-write_missing=True
-full=True
-n_jobs=-1
-
 def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, full=False, n_jobs=-1):
     """Function to read iELVis output in elec_recon directory
 
@@ -32,8 +25,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
 
     """
     if subjects_dir is None:
-        from mne import get_config
-        subjects_dir = get_config()['SUBJECTS_DIR']
+        subjects_dir = mne.get_config()['SUBJECTS_DIR']
 
     elecReconDir = os.path.join(subjects_dir, subject, 'elec_recon')
 
@@ -82,7 +74,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
         ptd_df = ptd_df.drop(columns=cols2remove)
         elecTable = pd.merge(elecTable,ptd_df,on='label')
     except:
-        print('Could not get PTD values')
+        raise RuntimeError('Could not get PTD values')
 
     # Get atlas labels if they're there
     from ieeg2nwb.atlases import ATLASES

@@ -140,7 +140,6 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
         return None
 
     if subjects_dir is None:
-        from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
 
