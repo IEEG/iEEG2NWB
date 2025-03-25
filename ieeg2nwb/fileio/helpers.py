@@ -44,7 +44,8 @@ def _read_coordinates(coordFname):
         isHdr = True
         for thisLine in f:
             if isHdr:
-                isHdrline = (thisLine == 'R A S\n') or (thisLine == 'X Y Z\n')
+                thisLine = thisLine.replace(" ","")
+                isHdrline = (thisLine == 'RAS\n') or (thisLine == 'XYZ\n')
                 if isHdrline:
                     isHdr = False
                 continue

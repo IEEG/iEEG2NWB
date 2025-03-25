@@ -7,11 +7,6 @@ from scipy.io import savemat
 from ieeg2nwb.utils import read_aseg_csv
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames
 
-subject = "NS162_02"
-offset = 2
-subjects_dir = None
-write_to_file = True
-
 def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None, write_to_file: bool =True):
     """Find Proximal Tissue Density of each sensor for a subject
 
@@ -74,7 +69,7 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None, wri
     }
 
     # Iterate over electrodes
-    for label, coords in tqdm(zip(elecNames, coordinates), desc="Finding PTD", unit="Electrode", position=0, leave=True):
+    for label, coords in tqdm(zip(elecNames, coordinates), desc="Finding PTD", unit="Electrode", position=0, leave=True, total=len(elecNames)):
 
         coords = np.round(coords).astype(int)
 
@@ -125,6 +120,7 @@ def get_ptd_index(subject: str, offset: float = 2, subjects_dir: str = None, wri
         tmp = ptd_idx.copy()
         tmp["elec"] = np.array(tmp["elec"], dtype=object)
         tmp["location"] = np.array(tmp["location"], dtype=object)
+        print("--->Saving %s" % fname)
         savemat(fname, {"PTD_idx": tmp})
         
     return ptd_idx

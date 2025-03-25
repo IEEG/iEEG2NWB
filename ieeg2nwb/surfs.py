@@ -8,9 +8,10 @@ from nibabel.freesurfer.io import read_geometry, read_annot, write_annot
 import pandas as pd
 from typing import Union
 import nibabel as nib
+from nibabel.freesurfer.io import read_geometry
 from mne import get_config, read_freesurfer_lut
 from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
-from ieeg2nwb.utils import _get_data_directory
+from ieeg2nwb.utils import _get_data_directory, timenow
 from ieeg2nwb.atlases import ATLASES
 
 def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = None,
@@ -267,8 +268,18 @@ def elec_to_parc(
         subjects_dir = get_config()['SUBJECTS_DIR']
 
     # Check for incorrect input
-    is_none = [x is None for x in [coords, hem, labels, spec]]
-    if None in [coords, hem, labels] and not all(is_none):
+    #is_none = [x is None for x in [coords, hem, labels, spec]]
+    is_none = []
+    for x in [coords, hem, labels, spec]:
+        if isinstance(x, np.ndarray) or isinstance(x, list) or isinstance(x, str):
+            is_none.append(False)
+        elif x is not None:
+            is_none.append(False)
+        else:
+            is_none.append(True)
+
+
+    if None in is_none and not all(is_none):
         raise ValueError("If one of [hem,label,coords] is None then all must be None")
         return None
     elif not all(is_none):
@@ -285,10 +296,10 @@ def elec_to_parc(
     elec_df["location"] = ""
 
     # Get the filename for the parcellation to make
-    parc = parc.lower()
     parc_fname = None
     parc_shorthand = None
     if isinstance(parc, str):
+        parc = parc.lower()
         if parc in ATLASES.keys():
             parc_fname = ATLASES[parc]["annot_fname"]
             parc_shorthand = parc.upper()
@@ -377,6 +388,15 @@ def elec_to_parc(
     return output_df.to_dict("list")
 
 
+# subject = "NS162_02"
+# subjects_dir=None
+# coords=None
+# hem=None
+# labels=None
+# subdural=None
+# n_jobs=-1
+# write_to_file=True
+
 def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=None, subdural=None, n_jobs=-1, write_to_file=True):
     """
     Convert coordinates from subject space to fsaverage space.
@@ -410,10 +430,8 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
     - The fsaverage coordinates are returned as a numpy array.
 
     """
-    from nibabel.freesurfer.io import read_geometry
 
     if subjects_dir is None:
-        from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
     
     elecReconDir = op.join(subjects_dir, subject, 'elec_recon')
@@ -459,9 +477,9 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
         nearest_verts_df = find_nearest_vertex(
             subject,
             subjects_dir=subjects_dir,
-            coords=ecog_elecs["pial"].to_list(),
-            hem=ecog_elecs["hem"],
-            labels=ecog_elecs["labels"],
+            coords=ecog_elecs["native"].to_list(),
+            hem=ecog_elecs["hem"].to_list(),
+            labels=ecog_elecs["labels"].to_list(),
             surf="pial",
             n_jobs=n_jobs
         )
@@ -480,7 +498,7 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
         # Get the coordinates on spheres
         sphere_coords = np.zeros((len(ecog_elecs), 3))
         for i, row in ecog_elecs.iterrows(): #range(len(ecog_elecs)):
-            h = row["hem"]
+            h = row["hem"].lower()
             sphere_coords[i, :] = verts[h][closest_verts[i]]
 
         # Now find the nearest vertex on fsaverage
@@ -488,8 +506,8 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
             "fsaverage",
             subjects_dir=subjects_dir,
             coords=sphere_coords,
-            hem=ecog_elecs["hem"],
-            labels=ecog_elecs["labels"],
+            hem=ecog_elecs["hem"].to_list(),
+            labels=ecog_elecs["labels"].to_list(),
             surf="sphere",
             n_jobs=n_jobs
         )
@@ -549,11 +567,10 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
 
     # Write out to file
     if write_to_file:
-        from ieeg2nwb.utils import timenow
         fname = op.join(subjects_dir, subject, "elec_recon", subject + ".FSAVERAGE")
         with open(fname, 'w') as file:
             file.write(timenow() + '\n')
-            file.write("R A S \n")
+            file.write("R A S\n")
             np.savetxt(file, avg_coords, fmt='%.6f', delimiter=' ')
 
     return avg_coords
@@ -575,7 +592,6 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
         Number of parallels jobs, default is -1
     """
 
-    from ieeg2nwb.atlases import ATLASES
     all_parcs = [k["annot_fname"] for a, k in ATLASES.items()]
     
     if parc is None:
@@ -586,7 +602,6 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
         parc = [parc] + all_parcs
 
     if subjects_dir is None:
-        from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
     # Set paths
