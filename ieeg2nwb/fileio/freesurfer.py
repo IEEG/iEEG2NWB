@@ -1,6 +1,6 @@
 import numpy as np
 
-def freesurfer_read_xfm(xfm_file):
+def read_xfm(xfm_file):
     """Read a Freesurfer transformation matrix file
 
     Parameters
