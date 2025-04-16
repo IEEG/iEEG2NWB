@@ -6,16 +6,18 @@ from mne import get_config
 from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vertex, elec_to_parc, create_indiv_mapping
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
-from ieeg2nwb.atlases import ATLASES
+from ieeg2nwb.utils import get_atlases
 
 # subject = "NS162_02"
 # subjects_dir=None
 # squeeze=False
 # write_missing=True
-# full=False
+# parcs=True
+# extra_coords=True
+# full=True
 # n_jobs = -1
 
-def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, full=False, legacy=False, n_jobs=-1):
+def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_coords=False, write_to_file=True, full=False, legacy=False, n_jobs=-1):
     """Function to read iELVis output in elec_recon directory
 
     Parameters
@@ -33,10 +35,11 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
     if subjects_dir is None:
         subjects_dir = get_config()['SUBJECTS_DIR']
 
-    elecReconDir = os.path.join(subjects_dir, subject, 'elec_recon')
+    if full:
+        parcs = True
+        extra_coords = True
 
-    if legacy:
-        squeeze = False
+    elecReconDir = os.path.join(subjects_dir, subject, 'elec_recon')
 
     # Types of coordinates to import
     coord_types = ['LEPTO','LEPTOVOX','PIAL','PIALVOX','FSAVERAGE','INF']
@@ -88,7 +91,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
         raise RuntimeError('Could not get PTD values') from exc
     
     # If user species "full" then get all other coordinates that are snapped to surface
-    if full:
+    if extra_coords:
 
         # Find nearest vertex for each contact
         if squeeze:
@@ -119,7 +122,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
         new_coords["fsaverage_pial_snap"] = sub_to_fsaverage(subject, subjects_dir=subjects_dir, coords=new_coords["pial_snap"].tolist(), hem=hem, labels=labels, subdural=is_subdural)
 
         # coordinates of electrodes snapped to fsaverage inflated surface
-        new_coords["fsaverage_inf_snap"]  = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=new_coords["fsaverage_pail_snap"] , hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
+        new_coords["fsaverage_inf_snap"]  = pial_to_inflated("fsaverage", subjects_dir=subjects_dir, coords=new_coords["fsaverage_pial_snap"] , hem=hem, labels=labels, write_to_file=False, n_jobs=n_jobs)
 
         # Add the new coordinates to the table
         for colname, coords in new_coords.items():
@@ -132,6 +135,8 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
             else:
                 elecTable[colname] = coords
 
+    # Get parcellations (atlases)
+    if parcs:
         # Find distance to nearest pial vertex and add as dist_to_surf_mm
         dist_to_vert = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=elecTable.loc[:,["PIAL_x","PIAL_y", "PIAL_z"]].to_numpy().tolist(), hem=elecTable["hem"].to_list(), labels=elecTable["label"].to_list(), n_jobs=-1)
         dist_df = dist_to_vert[["label", "distance"]].rename(columns={"distance": "dist_to_surf_mm"})
@@ -139,7 +144,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
 
         # Check if atlases need to be made
         atlas_fnames = []
-        for a, atlas_info in ATLASES.items():
+        for a, atlas_info in get_atlases().items():
             atlas_fnames.append(os.path.join(subjects_dir, subject, "label", "lh."+atlas_info["annot_fname"] + ".annot"))
             atlas_fnames.append(os.path.join(subjects_dir, subject, "label", "rh."+atlas_info["annot_fname"] + ".annot"))
         if not all([os.path.isfile(f) for f in atlas_fnames]):
@@ -150,22 +155,27 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, write_missing=True, f
             coords_cols = ["PIAL"]
         else:
             coords_cols = ["PIAL_x","PIAL_y", "PIAL_z"]
-        for a, atlas_info in ATLASES.items():
-            atlas_labels = elec_to_parc(
-                subject,
-                subjects_dir=subjects_dir,
-                coords=elecTable.loc[:,coords_cols].to_numpy().tolist(),
-                hem=elecTable["hem"].to_list(),
-                labels=elecTable["label"].to_list(),
-                spec=["G"]*elecTable.shape[0],
-                parc=a,
-                write_to_file=False,
-                n_jobs=n_jobs
-            )
-            elecTable = pd.merge(elecTable, pd.DataFrame(atlas_labels), on='label')
+        for a, atlas_info in get_atlases().items():
+            atlas_col_name = a + "_atlas"
+            atlas_fname = os.path.join(elecReconDir, subject + '_' + a.upper() + "_AtlasLabels.tsv")
+            if os.path.exists(atlas_fname):
+                atlas_labels = _read_atlas_labels(atlas_fname).rename(columns={'region': atlas_col_name})
+                elecTable = pd.merge(elecTable, atlas_labels, on='label')
+            else:
+                atlas_labels = elec_to_parc(
+                    subject,
+                    subjects_dir=subjects_dir,
+                    coords=elecTable.loc[:,coords_cols].to_numpy().tolist(),
+                    hem=elecTable["hem"].to_list(),
+                    labels=elecTable["label"].to_list(),
+                    spec=["G"]*elecTable.shape[0],
+                    parc=a,
+                    write_to_file=write_to_file,
+                    n_jobs=n_jobs
+                )
+                elecTable = pd.merge(elecTable, pd.DataFrame(atlas_labels).rename(columns={"location": atlas_col_name}), on='label')
 
-        
-        
+
     # If legacy naming is desired then adjust table
     # """""       
     # {'SubID'}    {'Contact'}    {'ElecType'}    {'Hem'}    {'PIAL'}

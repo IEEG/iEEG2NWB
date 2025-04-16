@@ -51,56 +51,6 @@ def _select_excel_file():
         raise Exception("No file selected")
     
     return fname
-
-
-"""
-1. Leave the first 11 columns. They will be:
-* Label
-* XLTEK_chan
-* TDT_chan
-* cable #
-* TDT Bank
-* GOOD
-* Spec
-* SOZ
-* Spikey
-* Out
-* Bad
-
-
-2. For areas
-For grid+strip use parcellations
-For depth use segmentation (aparc+aseg.mgz)
-
-3. Find more info
-* WMvsGM
-* LvsR
-* sEEG_ECoG
-
-4. Get PTDIndex!!!
-
-5. DK atlas
-* full name!!!
-* index
-* lobe
-
-6. Destrieux atlas info
-* shorthand name (G_temporal_inf)!!!
-* d index
-* full name (Inferior temporal gyrus (T3))
-
-7. YEO atlas info
-* Yeo7 label!!!
-* Yeo7 index
-* Yeo17 label!!!
-* Yeo17 index
-
-8. Coordinates
-* LEPTO!!!
-* PIALVOX
-* fsaverage
-"""
-
 # TODO: Create function for creating full correspondence sheet
 
 #%% Setup and configuration
@@ -126,11 +76,7 @@ if op.isfile(op.join(elec_recon_dir, "GreyWhite_classifications.mat")):
 
 # Add breakpoint to inspect data
 # Read iELVis
-ielvis_df = read_ielvis(subject_id, subjects_dir=freesufer_subject_directory)
-
-
-# Get DK atlas volumetric and
-
+ielvis_df = read_ielvis(subject_id, subjects_dir=freesufer_subject_directory, full=True)
 
 
 

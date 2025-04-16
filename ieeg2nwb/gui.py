@@ -9,9 +9,9 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
                              QAction, QToolBar,QMenuBar, QMenu)
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 import sys
-import tdt
 import yaml
-from .utils import load_nwb_settings
+import tdt
+from ieeg2nwb.utils import load_nwb_settings
 
 # TODO: Integrate with new ieeg2nwb_2
 

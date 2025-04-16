@@ -8,7 +8,7 @@
         "columns": {
             "label": {
                 "title": "label",
-                "search": "(?:Label|Contact|label*)",
+                "search": "(?:Label|Contact|label*|label)",
                 "description": "name of the channel",
                 "type": "string",
                 "required": true
@@ -191,7 +191,7 @@
             },
             "dist": {
                 "title": "dist",
-                "search": "Dist",
+                "search": "(?:Dist|dist_to_surf_mm)",
                 "description": "Distance of channel to nearest vertex on cortical surface",
                 "default": 999,
                 "type": "float",

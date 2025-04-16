@@ -16,25 +16,28 @@ import os
 import os.path as op
 import glob
 import re
-import tdt
 from datetime import datetime
 from dateutil.tz import tzlocal
 from datetime import timedelta
+import tdt
 from hdmf.backends.hdf5.h5_utils import H5DataIO
+from pynwb import NWBHDF5IO
 from pynwb.base import TimeSeries
 from pynwb.ecephys import ElectricalSeries
+from pynwb.file import ElectrodeTable, Subject
 from pynwb.epoch import TimeIntervals
+from ndx_events import TTLs
 import json
 import yaml
 import argparse
+import warnings
 import sys
 from colorama import Back, Style
 from pymatreader import read_mat
 import h5py
-#from messages import example_usage, additional_notes
 from ieeg2nwb.utils import load_nwb_settings
-from ieeg2nwb.tdt import _get_tdt_store, get_tdt_data
-from fileio.ielvis import read_ielvis
+from ieeg2nwb.fileio.tdt import _get_tdt_store, get_tdt_data, read_tdt_ttls
+from ieeg2nwb.fileio import read_ielvis
 
 # TODO
 #   - "make BIDS" option to create json sidecars for BIDS
@@ -120,7 +123,6 @@ class IEEG2NWB:
 
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
         """Create subject object."""
-        from pynwb.file import Subject
         subject = Subject(
             age=self._params['subject_age'] if age is None else 'P' + str(age) + 'Y',
             sex=self._params['subject_sex'] if sex is None else sex,
@@ -216,6 +218,7 @@ class IEEG2NWB:
         # Get rid of all channels without labels
         label_col_name = [col for col in corr_columns if col.lower() == 'label'][0]
         corr_sheet.rename(columns={label_col_name: 'label'}, inplace=True)
+        corr_sheet["label"] = corr_sheet["label"].str.strip()
         corr_sheet = corr_sheet[~corr_sheet["label"].isin(['[]', ''])]
 
         # Rename column has relevant channel numbering
@@ -289,7 +292,7 @@ class IEEG2NWB:
 
         #return elecs_dict
 
-    def process_correspondence_sheet(self, extra_columns=None):
+    def process_correspondence_sheet(self):
         """Add info to correspondence sheet and prepare it to become ElectrodeTable"""
 
         # Parameters for the columns of the electrode table
@@ -301,46 +304,45 @@ class IEEG2NWB:
         subjects_dir = self.freesurfer_subject_dir
 
         # Get ielvis data
-        ielvis_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False)
+        elecs_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False, parcs=True)
+        
+        # Remove spec column from elecs_df because correspondence sheet should have
+        elecs_df = elecs_df.drop(columns=["spec"])
+        
+        # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
+        corr_sheet = corr_sheet.iloc[:, :11]
 
-        # Columns that ielvis can contribute to
-        ielvis_columns = {
-            "label": "label",
-            "LEPTO_x": "lepto_x",
-            "LEPTO_y": "lepto_y",
-            "LEPTO_z": "lepto_z",
-            "FSAVERAGE_x": "x",
-            "FSAVERAGE_y": "y",
-            "FSAVERAGE_z": "z",
-            "PTD": "ptd",
-            "desikan-killiany_atlas": "desikan_killiany_atlas",
-            "destrieux_atlas": "destrieux_atlas",
-            "location": "location",
-            "hem": "hem",
-            "yeo7_atlas": "yeo7_atlas",
-            "yeo17_atlas": "yeo17_atlas"
-        }
+        # Check for labels in elecs_df that aren't in corr_sheet
+        elecs_df_labels = set(elecs_df["label"].str.lower())
+        corr_sheet_labels = set(corr_sheet["label"].str.lower())
+        missing_from_corr = elecs_df_labels - corr_sheet_labels
+        if len(missing_from_corr) > 0:
+            warnings.warn(f"Found labels in ielvis that are not in correspondence sheet: {missing_from_corr}")
 
-        # If some columns are missing then run the commands to generate them
-        missing_ielvis_cols = [col for col in ielvis_columns.keys() if col not in ielvis_df.columns]
-        if len(missing_ielvis_cols) > 0:
-            if any(c for c in ["PTD", "location"] if c in missing_ielvis_cols):
-                from .ptd import get_ptd_index
-                get_ptd_index(subject=subject_id, subjects_dir=subjects_dir)
-            if any(c for c in ["desikan-killiany_atlas", "destrieux_atlas", "yeo7_atlas", "yeo17_atlas"] if
-                   c in missing_ielvis_cols):
-                from .surfs import elec_to_parc
-                elec_to_parc(subject=subject_id, subjects_dir=subjects_dir)
-            ielvis_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False)
+        # Check for labels in corr_sheet that aren't in elecs_df
+        missing_from_ielvis = corr_sheet_labels - elecs_df_labels
+        if len(missing_from_ielvis) > 0:
+            print(f"Found labels in correspondence sheet that are not in ielvis: {missing_from_ielvis}")
 
-        # Remove and rename some columns
-        ielvis_df = ielvis_df[list(ielvis_columns.keys())].rename(columns=ielvis_columns)
-
+        # Merge while preserving order of corr_sheet labels
+        # Create temporary lowercase columns for case-insensitive merge
+        corr_sheet['label_lower'] = corr_sheet['label'].str.lower()
+        elecs_df['label_lower'] = elecs_df['label'].str.lower()
+        
+        elecs_df = pd.merge(corr_sheet, elecs_df,
+                           left_on="label_lower",
+                           right_on="label_lower", 
+                           how="outer",
+                           suffixes=(None, '_drop')).reindex(corr_sheet.index)
+        
+        # Drop any duplicate label columns and temporary lowercase columns
+        elecs_df = elecs_df.loc[:, ~elecs_df.columns.str.endswith('_drop')]
+        elecs_df = elecs_df.drop(columns=['label_lower'])
+        
         # Variables to use later
         dynamic_columns = [] # Column definitions for ElectrodeTable, list of dictionaries
         cols2rename = {} # Columns to rename for formatting
         cols2keep = [] # Columns to not drop
-        #dfcols = list(corr_sheet.columns)
         missing_cols = [] # Columns that are missing
 
         # Go through columns
@@ -355,34 +357,34 @@ class IEEG2NWB:
                 r = re.compile(col_settings['search'], re.IGNORECASE)
                 colfound = list(filter(r.match, corr_sheet.columns))
 
-            # Check first if column can be retrieved from ielvis
-            if c in ielvis_df.columns and c != "label":
-                corr_sheet = corr_sheet.merge(ielvis_df[["label", c]], on="label", how="left")
-                corr_sheet[c] = corr_sheet[c].fillna(col_settings['default'])
-                in_ielvis = True
+            # # Check first if column can be retrieved from ielvis
+            # if c in ielvis_df.columns and c != "label":
+            #     corr_sheet = corr_sheet.merge(ielvis_df[["label", c]], on="label", how="left")
+            #     corr_sheet[c] = corr_sheet[c].fillna(col_settings['default'])
+            #     in_ielvis = True
 
             # IF column is found then give it the right name and fill blank cells
-            elif len(colfound) > 0:
+            if len(colfound) > 0:
                 cols2rename[colfound[0]] = col_settings['title']
                 if 'default' in col_settings.keys():
-                    corr_sheet[colfound[0]] = corr_sheet[colfound[0]].fillna(col_settings['default'])
+                    elecs_df[colfound[0]] = elecs_df[colfound[0]].fillna(col_settings['default'])
 
             # Column is required, absent and has a default
             elif (len(colfound) == 0) & is_required & ('default' in col_settings.keys()):
-                corr_sheet[col_settings['title']] = col_settings['default']
+                elecs_df[col_settings['title']] = col_settings['default']
                 missing_cols.append(col_settings['title'])
 
             # Column is required, absent
             elif len(colfound) == 0 & is_required:
-                corr_sheet[col_settings['title']] = 'None'
+                elecs_df[col_settings['title']] = 'None'
                 missing_cols.append(col_settings['title'])
 
             # Make into the correct data type
             if ('type' in col_settings.keys()) & (len(colfound) != 0):
                 try:
-                    corr_sheet[colfound[0]] = corr_sheet[colfound[0]].astype(col_settings['type'])
+                    elecs_df[colfound[0]] = elecs_df[colfound[0]].astype(col_settings['type'])
                 except ValueError:
-                    corr_sheet[colfound[0]].replace("None", "0").astype(col_settings['type'])
+                    elecs_df[colfound[0]].replace("None", "0").astype(col_settings['type'])
 
             # Append dynamic_columns and mark this column as being kept
             if (len(colfound) > 0) | is_required | in_ielvis:
@@ -394,17 +396,16 @@ class IEEG2NWB:
                 missing_cols.append(col_settings['title'])
 
         # Keep only the needed columns in dataframe
-        corr_sheet = corr_sheet.rename(columns=cols2rename).loc[:, cols2keep]
+        elecs_df = elecs_df.rename(columns=cols2rename).loc[:, cols2keep]
 
         # Store column definitions for creating ElectrodeTable
         self.electable_columns = dynamic_columns
 
         # Store the processed correspondence sheet
-        self.correspondence_table = corr_sheet
+        self.correspondence_table = elecs_df
 
     def create_electrode_table(self):
         """Create the ElectrodeTable that is a DynamicTable object."""
-        from pynwb.file import ElectrodeTable
         electable = ElectrodeTable().from_dataframe(
             self.correspondence_table,
             self._params["electrode_table"]["name"],
@@ -522,14 +523,14 @@ class IEEG2NWB:
         ex:
         create_digital_acquisition(['PtC2', 'PtC4', 'PtC6'])
         """
-        from .tdt import read_tdt_ttls
 
         # Get the timestamps and stores they're from
-        event_times_df = read_tdt_ttls(self.raw_data, stores)
+        event_times = read_tdt_ttls(self.raw_data, stores)
+        event_times_df = pd.DataFrame(event_times)
 
         # Get rid of any timestamps occurring at t=0
         invalid_timestamps = event_times_df["time"] == 0
-        if np.any(invalid_timestamps):
+        if len(invalid_timestamps)>0:
             event_times_df = event_times_df[~invalid_timestamps]
 
         # Make numeric code
@@ -542,7 +543,6 @@ class IEEG2NWB:
             codes.append(store_codes[ii])
 
         # Create the TTLs object and add to NWB file
-        from ndx_events import TTLs
         events = TTLs(
             name=name,
             description=description,
@@ -671,7 +671,7 @@ class IEEG2NWB:
         eeg_array = eeg_array[self.channel_labels["channel"], :]
 
         # Create the ElectricalSeries object for each table region
-        for acq_name in self.electable_regions.keys():
+        for acq_name,region in self.electable_regions.items():
 
             # # Figure out which channels are in the region
             # electable_rows = self.electable_regions[region].data
@@ -679,15 +679,14 @@ class IEEG2NWB:
             # df = pd.DataFrame(self.channel_labels)
             # elec_indices = df[df["label"].isin(elec_names)].index
             # elec_channels = df.loc[elec_indices,"channel"].to_list()
-            region = self.electable_regions[acq_name]
             elec_channels = region.data
 
             self._create_electricalseries(
                 acq_name,
                 data=eeg_array[elec_channels, :].T,
                 fs=fs,
-                description=f"data recorded from {region} electrodes",
-                electrodes=self.electable_regions[region]
+                description=f"data recorded from {acq_name} electrodes",
+                electrodes=region
             )
 
     def _edf_create_analog_acquisition(self, analog_stores):
@@ -720,7 +719,15 @@ class IEEG2NWB:
             )
 
     def _tdt_create_analog_acquisition(self, analog_stores):
-        """For TDT data create extra analog acquisitions."""
+        """For TDT data create extra analog acquisitions.
+        
+        Expects list of dicts
+        {"store": <str or list of store containing the data>,
+        "channel": <channels in the stores to use>,
+        "unit": <unit of measurement (ex: volts)>,
+        "comments": <any additional comments>,
+        "name": <name of the new TimeSeries>}
+        """
         for eac in analog_stores:
 
             # Get all stores
@@ -733,7 +740,7 @@ class IEEG2NWB:
             if eac["channel"] is not None:
                 analog_array = analog_array[eac["channel"], :]
 
-            if unit in eac.keys():
+            if "unit" in eac.keys():
                 unit = eac["unit"]
             else:
                 unit = "volts"
@@ -771,7 +778,7 @@ class IEEG2NWB:
             eeg_array, fs = get_tdt_data(self.raw_data, eeg_chans, ignore_missing=False)
 
         # Create the ElectricalSeries object for each table region
-        for acq_name in self.electable_regions.keys():
+        for acq_name, region in self.electable_regions.items():
 
             # Figure out which channels are in the region
             # electable_rows = self.electable_regions[region].data
@@ -780,11 +787,10 @@ class IEEG2NWB:
             # elec_indices = df[df["label"].isin(elec_names)].index
             # elec_channels = df.loc[elec_indices,"channel"].to_list()
 
-            region = self.electable_regions[acq_name]
             elec_channels = region.data
 
             self._create_electricalseries(
-                region,
+                acq_name,
                 data=eeg_array[elec_channels, :].T,
                 fs=fs,
                 description=f"data recorded from {acq_name} electrodes",
@@ -908,7 +914,6 @@ class IEEG2NWB:
 
     def write_nwb(self, nwb_file=None):
         """Write the NWB file."""
-        from pynwb import NWBHDF5IO
         if nwb_file is None and self.output_file is None:
             raise ValueError("Output file must be provided")
         elif nwb_file is None:
@@ -919,7 +924,7 @@ class IEEG2NWB:
             nwb_file += '.nwb'
 
         # If available annotations haven't been added then add them
-        if len(self.annotations) > 0 and "annotations" not in self.nwbfile.acquisition.keys():
+        if len(self.annotations["timestamps"]) > 0 and "annotations" not in self.nwbfile.acquisition.keys():
             self.add_annotations()
 
         # Write the NWB file
@@ -942,7 +947,7 @@ class IEEG2NWB:
         # Read data
         print('-----> Reading input: %s' % params['block'])
         eeg_chans = params.get('neurodata')
-        self.read_raw_data(params['block'], make_device=True)
+        self.read_raw_data(params['block'], create_device=True)
 
         # Get subject specific info and create subject
         subinfo = ['subject_id', 'sex', 'age', 'subject_description']
@@ -951,9 +956,12 @@ class IEEG2NWB:
             if s in params.keys():
                 subdict[s] = str(params[s])
 
+        if len(subdict.keys())==0 and "subject" in params.keys():
+            subdict = params["subject"]
+        
         if subdict:
             self.create_subject(**subdict)
-
+        
         # Add freesurfer info
         freesurfer_subject_id = params["subject_id"]
         freesurfer_subject_directory = None
@@ -962,6 +970,11 @@ class IEEG2NWB:
         if "freesurfer_subject_directory" in params.keys():
             freesurfer_subject_directory = params["freesurfer_subject_directory"]
         self.set_freesurfer(subject_id=freesurfer_subject_id, subject_dir=freesurfer_subject_directory)
+
+        # If the labelfile key is there then use as much info in that as possible
+        if "labelfile" in params.keys() and freesurfer_subject_directory is None:
+            labelfile_path = params["labelfile"]
+            freesurfer_subject_directory = op.dirname(op.dirname(op.dirname(labelfile_path)))
 
         # Read correspondence sheet
         self.read_correspondence_sheet()
@@ -977,7 +990,7 @@ class IEEG2NWB:
 
         # Other acquisitions
         if params.get('analog'):
-            self.create_analog_acquisitions(params["analog"])
+            #self.create_analog_acquisitions(params["analog"])
             for ana in params['analog']:
 
                 if "stores" in ana.keys():
@@ -1002,10 +1015,10 @@ class IEEG2NWB:
 
             self.create_analog_acquisitions(params["analog"])
 
-        # Add for TTLs
-        # TODO: Add for TTLs
-
-
+        # Add TTLs
+        if "digital" in params.keys():
+            for dig in params["digital"]:
+                self.create_digital_acquisition(**dig)
 
         # Output filename
         if params.get('output'):
@@ -1058,27 +1071,5 @@ def cmnd_line_parser():
 
     # elif params['batch_file'] != None and os.path.isfile(params['batch_file']):
     #     batch_file_process(params['batch_file'],create_path=params['create_path'])
-
-
-
-if __name__ == "__main__":
-    # Parse command-line arguments
-    subjects_dir = "/Applications/freesurfer/7.2.0/subjects"
-    subject_id = "NS162_02"
-    raw_data_dir = "/Users/noahmarkowitz/Documents/HBML/NWB_conversion/sample_raw_data/NS162_02/B1_VisualLocalizer"
-    output_nwb_file = "/Users/noahmarkowitz/Documents/HBML/NWB_conversion/sample_nwb_files/B1_VisualLocalizer.nwb"
-    from converter_2 import IEEG2NWB
-
-    converter = IEEG2NWB()
-    converter.read_raw_data(raw_data_dir)
-    converter.create_subject(subject_id="NS162_02", sex="M", age=25)
-    converter.set_freesurfer(subject_id=subject_id, subject_dir=subjects_dir)
-    converter.read_correspondence_sheet()
-    converter.process_correspondence_sheet()
-    converter.create_electrode_groups()
-    converter.create_electrode_table()
-    converter.create_electrode_table_regions()
-    converter.format_data()
-    converter.write_nwb(output_nwb_file)
 
 

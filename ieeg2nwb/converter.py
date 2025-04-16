@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import os
 import re
-import tdt
+import fileio.tdt as tdt
 import uuid
 from mne.io import read_raw_edf
 from datetime import datetime
@@ -39,7 +39,7 @@ from openpyxl import load_workbook
 from colorama import Back, Style
 from .utils import load_nwb_settings
 from .messages import example_usage, additional_notes
-from .tdt import getTDTStore, read_tdt_ttls
+from .fileio.tdt import getTDTStore, read_tdt_ttls
 
 try:
     from mne.externals.pymatreader import read_mat

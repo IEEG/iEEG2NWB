@@ -15,11 +15,11 @@ def _get_tdt_store(tdt_data,store):
         #return KeyError
         return None
 
-raw_data_dir = "/Users/noahmarkowitz/Documents/HBML/NWB_conversion/sample_raw_data/NS162_02/B1_VisualLocalizer"
-
-
 # Function to collect stores and concatenate them
 def get_tdt_data(root, stores, ignore_missing=False):
+
+    if isinstance(stores, str):
+        stores = [stores]
 
     stream_list = []
     for s in stores:
@@ -86,5 +86,4 @@ def read_tdt_ttls(tdt_data,stores):
     if df.empty:
         return None
     else:
-        return df.sort_values(by=['time'])
-
+        return df.sort_values(by=['time']).to_dict("list")

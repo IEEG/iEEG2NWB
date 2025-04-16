@@ -10,6 +10,9 @@ setup(
     url='https://github.com/noahmarkowitz/iEEG2NWB',
     packages=find_packages(),
     package_dir={'ieeg2nwb': 'ieeg2nwb'},
+    package_data={
+        'ieeg2nwb': ['data/atlases/*.json']
+    },
     python_requires='>=3.6',
     install_requires=[
         'numpy',

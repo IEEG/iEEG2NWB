@@ -11,8 +11,7 @@ import nibabel as nib
 from nibabel.freesurfer.io import read_geometry
 from mne import get_config, read_freesurfer_lut
 from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
-from ieeg2nwb.utils import _get_data_directory, timenow
-from ieeg2nwb.atlases import ATLASES
+from ieeg2nwb.utils import _get_data_directory, timenow, get_atlases
 
 def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = None,
                      labels: Union[list, np.array] = None, hem: Union[list, np.array] = None,
@@ -211,7 +210,7 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
 def elec_to_parc(
     subject: str,
     subjects_dir: str = None,
-    coords: np.array = None,
+    coords: Union[np.array, list] = None,
     hem: Union[list, np.array] = None,
     labels: Union[list, np.array] = None,
     spec: list[str] = None,
@@ -298,10 +297,11 @@ def elec_to_parc(
     # Get the filename for the parcellation to make
     parc_fname = None
     parc_shorthand = None
+    atlases = get_atlases()
     if isinstance(parc, str):
         parc = parc.lower()
-        if parc in ATLASES.keys():
-            parc_fname = ATLASES[parc]["annot_fname"]
+        if parc in atlases.keys():
+            parc_fname = atlases[parc]["annot_fname"]
             parc_shorthand = parc.upper()
         else:
             parc_fname = parc
@@ -348,8 +348,12 @@ def elec_to_parc(
         ecog_coords = ecog_elecs["PIAL"].to_list()
         ecog_hem = ecog_elecs["hem"].to_list()
         ecog_labels = ecog_elecs["label"].to_list()
-        vert_df = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=ecog_coords, hem=ecog_hem, labels=ecog_labels, n_jobs=n_jobs)
 
+        # If vertex indices were given then don't need to find nearest vertex again
+        if isinstance(ecog_coords[0], list):
+            vert_df = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=ecog_coords, hem=ecog_hem, labels=ecog_labels, n_jobs=n_jobs)
+        else:
+            vert_df = pd.DataFrame({"label": ecog_labels, "distance": 0, "closest_vert": ecog_coords, "hem": ecog_hem})
 
         # Read annotation files
         lh_annot_fname = os.path.join(subjects_dir, subject, 'label', 'lh.' + parc_fname + '.annot')
@@ -592,7 +596,8 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
         Number of parallels jobs, default is -1
     """
 
-    all_parcs = [k["annot_fname"] for a, k in ATLASES.items()]
+    atlases = get_atlases()
+    all_parcs = [k["annot_fname"] for a, k in atlases.items()]
     
     if parc is None:
         parc = all_parcs

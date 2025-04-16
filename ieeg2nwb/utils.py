@@ -8,6 +8,7 @@ import time
 from tqdm import tqdm
 import yaml
 import json
+from importlib.resources import files
 
 def create_chunk_indices(nsamples, step=10000):
     chunks = []
@@ -244,3 +245,16 @@ def timenow() -> str:
     formatted_datetime = now.strftime('%d-%b-%Y %H:%M:%S')
 
     return formatted_datetime
+
+def get_atlases():
+    """Load atlas definitions from JSON file.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing atlas definitions with keys for each atlas type
+        (dk, d, hcp, y7, y17) and their corresponding properties.
+    """
+    atlas_file = files('ieeg2nwb.data.atlases') / 'atlases.json'
+    with open(atlas_file) as f:
+        return json.load(f)
