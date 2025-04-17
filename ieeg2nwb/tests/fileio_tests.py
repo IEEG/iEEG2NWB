@@ -1,5 +1,6 @@
 import mne
 import os
+import pandas as pd
 from ieeg2nwb import read_ielvis
 from ieeg2nwb.fileio.helpers import _read_atlas_labels, _read_electrodeNames, _read_coordinates, _read_ielvis_base, _read_ptd
 from ieeg2nwb.fileio.freesurfer import read_xfm

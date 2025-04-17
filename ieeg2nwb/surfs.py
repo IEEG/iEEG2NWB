@@ -12,6 +12,7 @@ from nibabel.freesurfer.io import read_geometry
 from mne import get_config, read_freesurfer_lut
 from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
 from ieeg2nwb.utils import _get_data_directory, timenow, get_atlases
+from ieeg2nwb.fileio.freesurfer import read_xfm
 
 def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = None,
                      labels: Union[list, np.array] = None, hem: Union[list, np.array] = None,
@@ -53,7 +54,6 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
     """
 
     if subjects_dir is None:
-        from mne import get_config
         subjects_dir = get_config()['SUBJECTS_DIR']
 
     # If coordinates not specified then plot subject using iELVis data
@@ -91,7 +91,6 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     # Write out to file
     if write_to_file:
-        from .utils import timenow
         fname = op.join(subjects_dir, subject, "elec_recon", subject + ".INF")
         with open(fname, 'w') as file:
             file.write(timenow() + '\n')
@@ -392,15 +391,6 @@ def elec_to_parc(
     return output_df.to_dict("list")
 
 
-# subject = "NS162_02"
-# subjects_dir=None
-# coords=None
-# hem=None
-# labels=None
-# subdural=None
-# n_jobs=-1
-# write_to_file=True
-
 def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=None, subdural=None, n_jobs=-1, write_to_file=True):
     """
     Convert coordinates from subject space to fsaverage space.
@@ -465,6 +455,9 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
 
     # Store average coordinates here
     avg_coords = np.zeros((len(labels), 3))
+
+    if isinstance(coords, np.ndarray):
+        coords = coords.tolist()
 
     elecs_df = pd.DataFrame({"labels": labels, "hem": hem, "subdural": subdural, "native": coords})
 
@@ -555,8 +548,7 @@ def sub_to_fsaverage(subject, subjects_dir=None, coords=None, hem=None, labels=N
         Torig = mri.header.get_vox2ras_tkr()
 
         # Read talairach.xfm
-        from ieeg2nwb.fileio.freesurfer import freesurfer_read_xfm
-        tal_xfm = freesurfer_read_xfm(op.join(subjects_dir, subject, "mri", "transforms", 'talairach.xfm'))
+        tal_xfm = read_xfm(op.join(subjects_dir, subject, "mri", "transforms", 'talairach.xfm'))
 
         # For readability break the calculation into a few lines
         n_elec = subdural_elecs.shape[0]
