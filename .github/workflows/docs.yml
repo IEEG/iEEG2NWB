@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      MODULE_NAME: neurodsp
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -15,7 +17,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install sphinx sphinx-rtd-theme
-          # Add other dependencies
+          pip install -e .
+          pip install -r requirements.txt
       - name: Build docs
         run: |
           cd docs
