@@ -1,4 +1,4 @@
-from .utils import get_atlases
+from ieeg2nwb.utils import get_atlases
 
 # Load atlas definitions
 ATLASES = get_atlases()

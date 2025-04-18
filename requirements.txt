@@ -7,3 +7,5 @@ soundfile
 mne
 openpyxl
 PyQt5
+nibabel
+nilearn

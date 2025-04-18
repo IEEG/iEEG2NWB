@@ -21,7 +21,7 @@ from openpyxl import load_workbook
 from colorama import Back, Style
 from ieeg2nwb.utils import load_nwb_settings
 from ieeg2nwb.messages import example_usage, additional_notes
-from fileio.ielvis import read_ielvis
+from ieeg2nwb.fileio.ielvis import read_ielvis
 try:
     from mne.externals.pymatreader import read_mat
 except:
