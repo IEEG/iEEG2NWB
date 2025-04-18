@@ -6,7 +6,8 @@ from ieeg2nwb.utils import copy_fsaverage_data, compress_data, inspectNwb, read_
 
 
 def test_nwb_utils():
-    pass
+    
+
 
 
 def test_misc_utils():
