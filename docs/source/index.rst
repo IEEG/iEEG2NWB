@@ -3,15 +3,22 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-IEEG2NWB documentation
-======================
+Welcome to IEEG2NWB's documentation!
+===================================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
-
+IEEG2NWB is a Python package for converting iEEG data to NWB format.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+
+   modules
+   api
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 
