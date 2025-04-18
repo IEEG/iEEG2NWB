@@ -37,9 +37,9 @@ import argparse
 import sys
 from openpyxl import load_workbook
 from colorama import Back, Style
-from .utils import load_nwb_settings
-from .messages import example_usage, additional_notes
-from .fileio.tdt import getTDTStore, read_tdt_ttls
+from ieeg2nwb.utils import load_nwb_settings
+from ieeg2nwb.messages import example_usage, additional_notes
+from ieeg2nwb.fileio.tdt import _get_tdt_store, read_tdt_ttls
 
 try:
     from mne.externals.pymatreader import read_mat
@@ -624,7 +624,7 @@ class IEEG2NWB:
         if eeg_chans == None:
             for streamList in self.tdt_eeg_chans:
                 for s in streamList:
-                    possibleStore = getTDTStore(raw_data, s)
+                    possibleStore = _get_tdt_store(raw_data, s)
                     if isinstance(possibleStore,tdt.StructType):
                         outList.append(possibleStore)
 
@@ -636,7 +636,7 @@ class IEEG2NWB:
         else:
             if not isinstance(eeg_chans, list): eeg_chans = list(eeg_chans)
             for store in eeg_chans:
-                outList.append(getTDTStore(raw_data,store))
+                outList.append(_get_tdt_store(raw_data,store))
 
         # Before proceeding, make sure that all stores have the same samplerate
         fs = outList[0].fs
@@ -919,7 +919,7 @@ class IEEG2NWB:
                     anaData = self.raw_data['orig'].get_data(anaStore)
                     anaFs = self.raw_data['orig'].info['sfreq']
                 elif file_type == 'tdt':
-                    anaTDT = getTDTStore(self.raw_data['orig'], anaStore)
+                    anaTDT = _get_tdt_store(self.raw_data['orig'], anaStore)
                     # chnIndices = np.array(chnNums) - 1
                     chnIndices = np.arange(0, anaTDT.data.shape[0]) if chnNums == 999 else np.array(chnNums).astype(int) - 1
                     anaData = anaTDT.data[chnIndices, :]

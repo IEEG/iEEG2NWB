@@ -23,7 +23,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.autosummary',
+    'sphinx.ext.autosummary'
 ]
 
 # Napoleon settings
@@ -44,7 +44,7 @@ autodoc_default_options = {
 html_theme = 'sphinx_rtd_theme'
 
 templates_path = ['_templates']
-exclude_patterns = []
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

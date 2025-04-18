@@ -12,7 +12,7 @@ IEEG2NWB is a Python package for converting iEEG data to NWB format.
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   .. modules
    api
 
 Indices and tables

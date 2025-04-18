@@ -22,11 +22,23 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
 
     Parameters
     ----------
-    subdir : str
+    subjects_dir : str
         The freesurfer subject directory containing iELVis files in a elec_recon folder
     squeeze: bool
         If True, the coordinates are returned as a list of lists. If False, all coordinates x,y,z points have their own column
-
+    parcs: bool
+        Whether to include parcellations in the output. Includes DK, D, Y7, Y17 and HCP
+    extra_coords: bool
+        Whether to add extra coordinates such as location of electrode snapped to nearest vertex
+    full: bool
+        If True will set parcs and extra_coords to True
+    write_to_file: bool
+        Write any newly generated data to subject elec_recon folder
+    legacy: bool
+        Name the columns according to the older MATLAB ielvisImport convention
+    n_jobs: int
+        Number of parallel jobs to have, default -1
+        
     Returns : pd.DataFrame
         DataFrame of the iELVis produced information
     -------
