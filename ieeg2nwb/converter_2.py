@@ -32,7 +32,7 @@ import yaml
 import argparse
 import warnings
 import sys
-from colorama import Back, Style
+#from colorama import Back, Style
 from pymatreader import read_mat
 import h5py
 from ieeg2nwb.utils import load_nwb_settings
@@ -226,7 +226,10 @@ class IEEG2NWB:
         chn_col_name = list(filter(r.match, corr_columns))[0]
         corr_sheet.rename(columns={chn_col_name: 'channel'}, inplace=True)
 
-        corr_sheet = corr_sheet.reset_index(drop=True)
+        # Convert the channel column to numeric, drop all non-numeric elements and their rows
+        corr_sheet['channel'] = pd.to_numeric(corr_sheet['channel'], errors='coerce')
+        corr_sheet = corr_sheet.dropna(subset=['channel'])
+        corr_sheet['channel'] = corr_sheet['channel'].astype(int)
 
         self.channel_labels = {
             "label": corr_sheet.loc[:,["label"]].values.flatten(),
@@ -456,6 +459,7 @@ class IEEG2NWB:
             for annot in self.raw_data.annotations:
                 self.annotations.append((annot['onset'], annot['description']))
             amplifier = "xltek"
+            start_time = self.raw_data.info["meas_date"]
         elif op.isdir(raw_data_files):
             dir_contents = os.listdir(raw_data_files)
             file_extensions = {op.splitext(f)[-1] for f in dir_contents if op.isfile(os.path.join(raw_data_files, f))}
