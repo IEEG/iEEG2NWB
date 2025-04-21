@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import os.path as op
 from mne import get_config
-from ieeg2nwb.surfs import sub_to_fsaverage, pial_to_inflated, find_nearest_vertex, elec_to_parc, create_indiv_mapping
+from ieeg2nwb.channel import sub_to_fsaverage, pial_to_inflated, elec_to_parc
+from ieeg2nwb.surfs import , find_nearest_vertex, create_indiv_mapping
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
 from ieeg2nwb.ptd import get_ptd_index
 from ieeg2nwb.utils import get_atlases
@@ -65,7 +66,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
     for c in coord_types:
         coordFname = os.path.join(elecReconDir, subject + '.' + c)
 
-        if not op.isfile(coordFname) and write_missing:
+        if not op.isfile(coordFname):
                 if c == "INF":
                     coords = pial_to_inflated(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
                 elif c == "FSAVERAGE":
@@ -84,23 +85,20 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
             elecTable[c] = coords
 
     # Get PTD values
-    try:
-        ptdFname = os.path.join(elecReconDir, 'GreyWhite_classifications.mat')
-
-        if not op.isfile(ptdFname) and write_missing:
-            _ = get_ptd_index(subject, subjects_dir=subjects_dir)
-
+    ptdFname = os.path.join(elecReconDir, 'GreyWhite_classifications.mat')
+    if not op.isfile(ptdFname):
+        ptd= get_ptd_index(subject, subjects_dir=subjects_dir, write_to_file=write_to_file)
+    else:
         ptd = _read_ptd(ptdFname)
-        ptd['label'] = ptd['elec']
-        ptd_df = pd.DataFrame(ptd)
-        cols2keep = ['label','location','PTD']
-        cols2remove = [col for col in list(ptd_df.columns) if col not in cols2keep]
-        ptd_df = ptd_df.drop(columns=cols2remove)
-        elecTable = pd.merge(elecTable,ptd_df,on='label')
-        elecTable = elecTable.rename(columns={"location": "aparc_aseg"})
+    
+    ptd['label'] = ptd['elec']
+    ptd_df = pd.DataFrame(ptd)
+    cols2keep = ['label','location','PTD']
+    cols2remove = [col for col in list(ptd_df.columns) if col not in cols2keep]
+    ptd_df = ptd_df.drop(columns=cols2remove)
+    elecTable = pd.merge(elecTable,ptd_df,on='label')
+    elecTable = elecTable.rename(columns={"location": "aparc_aseg"})
 
-    except Exception as exc:
-        raise RuntimeError('Could not get PTD values') from exc
     
     # If user species "full" then get all other coordinates that are snapped to surface
     if extra_coords:

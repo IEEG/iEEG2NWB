@@ -19,6 +19,19 @@ Create NWB Files
 Coming soon!
 
 
+Channels
+---------
+
+Functions for channels
+
+.. currentmodule:: ieeg2nwb.channels
+.. autosummary::
+    :toctree: generated/
+    pial_to_inflated
+    elec_to_parc
+    sub_to_fsaverage
+
+
 FileIO
 ---------
 
@@ -56,10 +69,7 @@ Functions and utilities for working with surfaces
 .. autosummary::
     :toctree: generated/
 
-    pial_to_inflated
     find_nearest_vertex
-    elec_to_parc
-    sub_to_fsaverage
     create_indiv_mapping
 
 
@@ -76,3 +86,5 @@ Extra functions that are useful
     read_aseg_csv
     copy_fsaverage_data
     load_nwb_settings
+
+

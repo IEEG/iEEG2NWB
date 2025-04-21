@@ -23,8 +23,13 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.autosummary'
+    'sphinx.ext.autosummary',
+    'sphinx_gallery.gen_gallery',
+    'nbsphinx',
 ]
+
+# Optional nbsphinx configuration
+nbsphinx_execute = 'never'  # Don't run notebooks during build
 
 # Napoleon settings
 napoleon_google_docstring = True
@@ -38,6 +43,14 @@ autodoc_default_options = {
     'special-members': '__init__',
     'undoc-members': True,
     'exclude-members': '__weakref__'
+}
+
+# Configure sphinx-gallery
+sphinx_gallery_conf = {
+    'examples_dirs': '../../examples',   # path to example scripts
+    'gallery_dirs': 'auto_examples',  # where to save gallery generated output
+    'filename_pattern': '/example_',  # Only run files starting with "example_"
+    'line_numbers': True,             # Show line numbers in code blocks
 }
 
 # Choose a theme (ReadTheDocs theme is popular)

@@ -12,13 +12,6 @@ Subpackages
 Submodules
 ----------
 
-ieeg2nwb.atlases module
------------------------
-
-.. automodule:: ieeg2nwb.atlases
-   :members:
-   :show-inheritance:
-   :undoc-members:
 
 ieeg2nwb.converter module
 -------------------------
@@ -44,26 +37,11 @@ ieeg2nwb.correspondence module
    :show-inheritance:
    :undoc-members:
 
-ieeg2nwb.ecog module
---------------------
-
-.. automodule:: ieeg2nwb.ecog
-   :members:
-   :show-inheritance:
-   :undoc-members:
 
 ieeg2nwb.gui module
 -------------------
 
 .. automodule:: ieeg2nwb.gui
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-ieeg2nwb.messages module
-------------------------
-
-.. automodule:: ieeg2nwb.messages
    :members:
    :show-inheritance:
    :undoc-members:
@@ -88,14 +66,6 @@ ieeg2nwb.utils module
 ---------------------
 
 .. automodule:: ieeg2nwb.utils
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-ieeg2nwb.volumes module
------------------------
-
-.. automodule:: ieeg2nwb.volumes
    :members:
    :show-inheritance:
    :undoc-members:
