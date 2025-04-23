@@ -79,6 +79,10 @@ class IEEG2NWB:
         self.raw_data_type = None
         # Labels that correspond to each channgel
         self.channel_labels = {"label": [], "channel": []}
+        # Number of channels available to use in the data
+        self.n_chans = 0
+        # For TDT data, the stores containing the primary eeg data
+        self.eeg_stores = []
         # Whether to create the path if it does not exist
         self.create_path = False
         # Annotations to add as a list of tuples (onset, description)
@@ -220,6 +224,7 @@ class IEEG2NWB:
         corr_sheet.rename(columns={label_col_name: 'label'}, inplace=True)
         corr_sheet["label"] = corr_sheet["label"].str.strip()
         corr_sheet = corr_sheet[~corr_sheet["label"].isin(['[]', ''])]
+        corr_sheet = corr_sheet.dropna(subset=["label"])
 
         # Rename column has relevant channel numbering
         r = re.compile(ch_col_name, re.IGNORECASE)
@@ -231,12 +236,9 @@ class IEEG2NWB:
         corr_sheet = corr_sheet.dropna(subset=['channel'])
         corr_sheet['channel'] = corr_sheet['channel'].astype(int)
 
-        self.channel_labels = {
-            "label": corr_sheet.loc[:,["label"]].values.flatten(),
-            "channel": corr_sheet.loc[:,["channel"]].values.flatten() - 1
-        }
+        corr_sheet = corr_sheet.reset_index(drop=True)
 
-        self.correspondence_table = corr_sheet.drop("channel", axis=1)
+        self.correspondence_table = corr_sheet
 
     def create_electrode_groups(self):
         """Create the ElectrodeGroup objects."""
@@ -303,6 +305,12 @@ class IEEG2NWB:
 
         corr_sheet = self.correspondence_table
 
+        # Use only the number of available channels
+        if self.n_chans > 0:
+            corr_sheet = corr_sheet.loc[corr_sheet["channel"] <= self.n_chans,:]
+            corr_sheet = corr_sheet.reset_index(drop=True)
+        
+        # Freesurfer stuff
         subject_id = self.freesurfer_subject_id
         subjects_dir = self.freesurfer_subject_dir
 
@@ -313,7 +321,11 @@ class IEEG2NWB:
         elecs_df = elecs_df.drop(columns=["spec"])
         
         # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
-        corr_sheet = corr_sheet.iloc[:, :11]
+        n_columns_corr = len(corr_sheet.columns)
+        if n_columns_corr > 11:
+            corr_sheet = corr_sheet.iloc[:, :11]
+        else:
+           corr_sheet = corr_sheet.iloc[:, :n_columns_corr] 
 
         # Check for labels in elecs_df that aren't in corr_sheet
         elecs_df_labels = set(elecs_df["label"].str.lower())
@@ -336,12 +348,26 @@ class IEEG2NWB:
                            left_on="label_lower",
                            right_on="label_lower", 
                            how="outer",
+                           sort=False,
                            suffixes=(None, '_drop')).reindex(corr_sheet.index)
         
         # Drop any duplicate label columns and temporary lowercase columns
         elecs_df = elecs_df.loc[:, ~elecs_df.columns.str.endswith('_drop')]
         elecs_df = elecs_df.drop(columns=['label_lower'])
+
+        # Sort by the "channel" column
+        elecs_df = elecs_df.sort_values(by="channel").reset_index(drop=True)
+        elecs_df["channel"] = elecs_df["channel"].values -1 
         
+        # Store channel and labels in a dict for later
+        self.channel_labels = {
+            "label": corr_sheet.loc[:,["label"]].values.flatten(),
+            "channel": corr_sheet.loc[:,["channel"]].values.flatten()
+        }
+
+        # Drop channel column
+        #corr_sheet = corr_sheet.drop("channel", axis=1)
+
         # Variables to use later
         dynamic_columns = [] # Column definitions for ElectrodeTable, list of dictionaries
         cols2rename = {} # Columns to rename for formatting
@@ -358,13 +384,7 @@ class IEEG2NWB:
             colfound = []
             if 'search' in col_settings.keys():
                 r = re.compile(col_settings['search'], re.IGNORECASE)
-                colfound = list(filter(r.match, corr_sheet.columns))
-
-            # # Check first if column can be retrieved from ielvis
-            # if c in ielvis_df.columns and c != "label":
-            #     corr_sheet = corr_sheet.merge(ielvis_df[["label", c]], on="label", how="left")
-            #     corr_sheet[c] = corr_sheet[c].fillna(col_settings['default'])
-            #     in_ielvis = True
+                colfound = list(filter(r.match, elecs_df.columns))
 
             # IF column is found then give it the right name and fill blank cells
             if len(colfound) > 0:
@@ -398,8 +418,10 @@ class IEEG2NWB:
             if (len(colfound) == 0):
                 missing_cols.append(col_settings['title'])
 
+        #old_sheet = elecs_df.copy()
+        
         # Keep only the needed columns in dataframe
-        elecs_df = elecs_df.rename(columns=cols2rename).loc[:, cols2keep]
+        elecs_df = elecs_df.rename(columns=cols2rename)#.loc[:, cols2keep]
 
         # Store column definitions for creating ElectrodeTable
         self.electable_columns = dynamic_columns
@@ -409,8 +431,10 @@ class IEEG2NWB:
 
     def create_electrode_table(self):
         """Create the ElectrodeTable that is a DynamicTable object."""
+        cols_to_keep = [c["name"] for c in self.electable_columns]
+        elecs_df = self.correspondence_table.loc[:, cols_to_keep]
         electable = ElectrodeTable().from_dataframe(
-            self.correspondence_table,
+            elecs_df,
             self._params["electrode_table"]["name"],
             table_description=self._params["electrode_table"]["description"],
             columns=self.electable_columns
@@ -424,7 +448,7 @@ class IEEG2NWB:
 
         intracranial_specs = self._params["intracranial_specs"]
 
-        df = self.correspondence_table
+        df = self.nwbfile.electrodes.to_dataframe()
         spec_indices = {'ieeg': []}
         for idx, row in df.iterrows():
             if row.spec.lower() in intracranial_specs:
@@ -435,22 +459,22 @@ class IEEG2NWB:
 
                 spec_indices[row.spec.lower()].append(idx)
 
-        for spec in spec_indices.keys():
+        for spec, chans in spec_indices.items():
             table_regions[spec] = self.nwbfile.create_electrode_table_region(
-                region=spec_indices[spec],
+                region=chans,
                 description=f"electrodes recording {spec} data",
                 name="electrodes"
             )
         self.electable_regions = table_regions
 
-    def read_raw_data(self, raw_data_files, create_device=True):
+    def read_raw_data(self, raw_data_files, create_device=True, eeg_chans=None):
         """Set the raw data file."""
         self.raw_data_file = raw_data_files
 
         # Check if file exists
         if not op.exists(raw_data_files):
             raise FileNotFoundError(f"File {raw_data_files} not found")
-
+        
         # Check what type of file it is
         if raw_data_files.endswith('.edf'):
             from mne.io import read_raw_edf
@@ -460,6 +484,7 @@ class IEEG2NWB:
                 self.annotations.append((annot['onset'], annot['description']))
             amplifier = "xltek"
             start_time = self.raw_data.info["meas_date"]
+            self.n_chans = len(self.raw_data.ch_names)
         elif op.isdir(raw_data_files):
             dir_contents = os.listdir(raw_data_files)
             file_extensions = {op.splitext(f)[-1] for f in dir_contents if op.isfile(os.path.join(raw_data_files, f))}
@@ -469,14 +494,19 @@ class IEEG2NWB:
                 if "info" in self.raw_data.keys():
                     start_time = self.raw_data.info.start_date
                 amplifier = "tdt"
+                eeg_data, _, stores = self._get_tdt_eeg_data(eeg_chans=eeg_chans, return_store_list=True)
+                self.n_chans = eeg_data.shape[0]
+                self.eeg_stores = stores
             elif ".erd" in file_extensions:
                 from nwreader import read_erd
                 self.raw_data_type = 'xltek'
                 self.raw_data = read_erd(raw_data_files, use_dask=True, convert=True, pad_discont=True)
                 start_time = self.raw_data.attrs["creation_time"]
                 amplifier = "xltek"
+                self.n_chans = self.raw_data.data.shape[0]
         else:
             raise ValueError("File type not recognized. Must be edf, tdt, or xltek")
+            return
 
         if self.start_time is None:
             self.start_time = start_time
@@ -764,23 +794,43 @@ class IEEG2NWB:
                 comments=comments
             )
 
-    def _tdt_format_data(self, eeg_chans=None):
-        """Take TDT raw data and format it to be stored in NWB."""
-
+    def _get_tdt_eeg_data(self, eeg_chans=None, return_store_list=False):
         # The default is to look for the EEG stores listed here
         tdt_eeg_channels = self._params["tdt_neuro_channels"]
 
+        eeg_array = None
+        fs = None
+
+        store_list = []
         if eeg_chans is None:
             for streams in tdt_eeg_channels:
-                eeg_array, fs = get_tdt_data(self.raw_data, streams, ignore_missing=True)
+                eeg_array, fs, store_list = get_tdt_data(self.raw_data, streams, ignore_missing=True, return_store_list=True)
                 if eeg_array is not None:
                     break
 
         else:
             if not isinstance(eeg_chans, list):
                 eeg_chans = list(eeg_chans)
-            eeg_array, fs = get_tdt_data(self.raw_data, eeg_chans, ignore_missing=False)
+            eeg_array, fs, available_stores = get_tdt_data(self.raw_data, eeg_chans, ignore_missing=False, return_store_list=True)
+            store_list = available_stores
 
+        if eeg_array is None:
+            raise RuntimeError(f"EEG data could not be found in the following stores: {tdt_eeg_channels}")
+            return None
+        
+        if return_store_list:
+            return eeg_array, fs, store_list
+        else:
+            return eeg_array, fs
+
+    def _tdt_format_data(self, eeg_chans=None):
+        """Take TDT raw data and format it to be stored in NWB."""
+
+        if eeg_chans is None:
+            eeg_chans = self.eeg_stores
+
+        eeg_array, fs = get_tdt_data(self.raw_data, self.eeg_stores, ignore_missing=False)
+        
         # Create the ElectricalSeries object for each table region
         for acq_name, region in self.electable_regions.items():
 
@@ -1034,6 +1084,202 @@ class IEEG2NWB:
         self.write_nwb(nwbfile_fname)
 
 
+def batch_file_process(batch_excel_file,create_path=False):
+
+    paramsdir,_ = os.path.splitext(batch_excel_file)
+    paramsdir += '_params'
+    if not os.path.isdir(paramsdir):
+        os.mkdir(paramsdir)
+
+    xlsx = pd.ExcelFile(batch_excel_file, engine="openpyxl")
+    sheet_names = xlsx.sheet_names
+
+    # Directory to hold all the params
+    if "blocks" not in sheet_names:
+        raise RuntimeError("No sheet named 'blocks' in excel file")
+        return None
+
+    df = pd.read_excel(batch_excel_file,sheet_name='blocks',engine='openpyxl')
+    colnames = list(df.columns)
+
+    # If there's a variables sheet then load that in
+    df_vars = {}
+    if "variables" in sheet_names:
+        vars_df = pd.read_excel(batch_excel_file, sheet_name='variables', header=None, engine='openpyxl')
+        vars_df = vars_df.astype(str)
+        if not vars_df.empty:
+            var_names = vars_df[0].to_list()
+            var_vals = vars_df[1].to_list()
+            df_vars = {var_names[ii]: var_vals[ii] for ii in range(len(var_names))}
+
+    for idx, row in df.iterrows():
+
+        try:
+
+            row_dict = row.dropna().astype(str).to_dict()
+            row_dict['create_path'] = create_path
+
+            # Fill in any variables
+            for var_key in df_vars.keys():
+                for var_key2 in df_vars.keys():
+                    var_val = df_vars[var_key2]
+                    if isinstance(var_val,str):
+                        var_val = var_val.replace('${' + var_key + '}', df_vars[var_key])
+                        df_vars[var_key2] = var_val
+            for var_key in df_vars.keys():
+                for row_key in row_dict.keys():
+                    row_val = row_dict[row_key]
+                    if isinstance(row_val, str):
+                        row_val = row_val.replace('${' + var_key + '}', df_vars[var_key])
+                        row_dict[row_key] = row_val
+
+            # replace block_id with block if necessary
+            if 'block' not in row_dict.keys():
+                try:
+                    row_dict['block'] = df_vars['block_path'] + '/' + row_dict['block_id']
+                    row_dict.pop('block_id')
+                except ValueError:
+                    print(
+                        'blocks sheet of batch file needs to have either "block" (with the complete path to the block) or "block_id" (with the path relative to "block_path" from the variables sheet).')
+
+            # Most important info
+            blockfile = os.path.basename(row_dict['block'])
+
+            if 'experimenter' in row_dict.keys(): row_dict['experimenter'] = row_dict['experimenter'].split(',')
+
+            # Neurodata
+            if 'neurodata' in row_dict.keys():
+                tmp = row_dict['neurodata'].split(',')
+                row_dict['neurodata'] = [x.rstrip().lstrip() for x in tmp]
+                #row_dict['neurodata'] = row_dict['neurodata'].split(',')
+
+            # Analog channels
+            analog_prefixes = []
+            for cname in colnames:
+                if cname.startswith("analog"):
+                    ana_cname = cname.split("_")[0]
+                    if ana_cname not in analog_prefixes:
+                        analog_prefixes.append(cname)
+
+
+            #analog_prefixes = ['analog1','analog2','analog3','analog4','analog5','analog6']
+            fields2add = ['name', 'store', 'channels', 'description', 'comments']
+            analist = []
+            for a in analog_prefixes:
+                # If name doesn't exist, then it isn't there
+                ana_name = a + '_name'
+                if ana_name not in row_dict.keys():
+                    continue
+
+                new_ana = {}
+                for f in fields2add:
+                    field2find = a + '_' + f
+                    if field2find in row_dict.keys():
+                        new_ana[f] = row_dict[field2find]
+                        row_dict.pop(field2find)
+
+                if 'channels' in new_ana.keys():
+                    new_ana['channels'] = [int(float(x)) for x in new_ana.get('channels').split(',')]
+
+                analist.append(new_ana)
+
+            # Digital channels
+            digital_prefixes = []
+            for cname in colnames:
+                if cname.startswith("digital"):
+                    dig_cname = cname.split("_")[0]
+                    if dig_cname not in digital_prefixes:
+                        digital_prefixes.append(cname)
+            
+            #digital_prefixes = ['digital1','digital2','digital3']
+            fields2add = ['name', 'stores', 'description', 'comments']
+            diglist = []
+            for d in digital_prefixes:
+                dig_name = d + '_name'
+                if dig_name not in row_dict.keys():
+                    continue
+
+                new_dig = {}
+                for f in fields2add:
+                    field2find = d + '_' + f
+                    if field2find in row_dict.keys():
+                        new_dig[f] = row_dict[field2find]
+                        row_dict.pop(field2find)
+
+                new_dig['stores'] = new_dig['stores'].split(',')
+                diglist.append(new_dig)
+
+            # Define output Path
+            if 'output' not in row_dict.keys():
+                if 'session_id' in row_dict.keys() and 'task' in row_dict.keys():
+                    outputName = 'sub-' + df_vars['subject_id'] + '_ses-' + row_dict['session_id'] + '_task-' + row_dict['task']
+                    if 'acq' in row_dict.keys():
+                        outputName = outputName + '_acq-' + row_dict['acq']
+                    if 'run' in row_dict.keys():
+                        outputName = outputName + '_run-' + row_dict['run']
+                else:
+                    outputName, _ = os.path.splitext(blockfile)
+                    outputName = outputName + '.nwb'
+                    
+                if 'output_path' in df_vars.keys():
+                    row_dict['output'] = df_vars['output_path'] + '/' + outputName
+                else:
+                    row_dict['output'] = outputName
+
+            # add subject level data if necessary
+            if 'labelfile' not in row_dict.keys():
+                if 'corr_sheet' in df_vars.keys():
+                    row_dict['labelfile'] = df_vars['corr_sheet']
+                else:
+                    print('electrode correspondence sheet could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "corr_sheet"')
+            if 'subject_id' not in row_dict.keys():
+                if 'subject_id' in df_vars.keys():
+                    row_dict['subject_id'] = df_vars['subject_id']
+                else:
+                    print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "subject_id"')
+            if 'sex' not in row_dict.keys():
+                if 'sex' in df_vars.keys():
+                    row_dict['sex'] = df_vars['sex']
+                else:
+                    print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "sex"')
+            if 'age' not in row_dict.keys():
+                if 'age' in df_vars.keys():
+                    row_dict['age'] = df_vars['age']
+                else:
+                    print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "age"')
+            if 'subject_description' not in row_dict.keys():
+                if 'subject_description' in df_vars.keys():
+                    row_dict['subject_id'] = df_vars['subject_id']
+                else:
+                    print('subject description could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "subject_description"')
+
+            # Add digital analog
+            subfields = zip(['analog', 'digital'], [analist, diglist])
+            for k,v in subfields:
+                if len(v) > 0:
+                    row_dict[k] = v
+
+            # Create a yml file
+            outfile = paramsdir + os.sep + '%s.yml' % blockfile
+            with open(outfile, 'w') as file:
+                yaml.dump(row_dict, file, sort_keys=False)
+
+            print('*' * 100)
+            print('Processing %s' % blockfile)
+            print('Params written to %s' % outfile)
+            print('*' * 100)
+
+            # Parse
+            inwb = IEEG2NWB()
+            inwb.parse_params(row_dict)
+
+        except:
+            print('*' * 200)
+            print('Error processing %s. Skipping to next file' % blockfile)
+            print('*' * 200)
+
+
+
 def cmnd_line_parser():
     # Create parser
     from .messages import example_usage, additional_notes
@@ -1075,5 +1321,6 @@ def cmnd_line_parser():
 
     # elif params['batch_file'] != None and os.path.isfile(params['batch_file']):
     #     batch_file_process(params['batch_file'],create_path=params['create_path'])
+
 
 

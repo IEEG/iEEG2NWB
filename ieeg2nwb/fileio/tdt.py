@@ -16,16 +16,18 @@ def _get_tdt_store(tdt_data,store):
         return None
 
 # Function to collect stores and concatenate them
-def get_tdt_data(root, stores, ignore_missing=False):
+def get_tdt_data(root, stores, ignore_missing=False, return_store_list=False):
 
     if isinstance(stores, str):
         stores = [stores]
 
+    available_stores = []
     stream_list = []
     for s in stores:
         stream = _get_tdt_store(root, s)
         if stream is not None:
             stream_list.append(stream)
+            available_stores.append(stream.name)
         else:
             if not ignore_missing:
                 raise ValueError(f"Store {s} not found in TDT block")
@@ -50,7 +52,10 @@ def get_tdt_data(root, stores, ignore_missing=False):
 
             analog_array = np.concatenate((analog_array, new_store_data), axis=0)
 
-    return analog_array, stream_list[0].fs
+    if return_store_list:
+        return analog_array, stream_list[0].fs, available_stores
+    else:
+        return analog_array, stream_list[0].fs
 
 
     # Now concatenate the streams

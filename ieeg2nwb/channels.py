@@ -423,7 +423,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     # If coordinates not specified then plot subject using iELVis data
     if coords is None:
-        elecs_df = _read_ielvis_base(op.join(subjects_dir, subject))
+        elecs_df = _read_ielvis_base(subject, subjects_dir)
         coords = np.array(elecs_df['PIAL'].to_list())
         labels = elecs_df['label'].to_list()
         hem = [h.lower() for h in elecs_df['hem'].to_list()]

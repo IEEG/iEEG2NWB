@@ -68,8 +68,10 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
 
         if not op.isfile(coordFname):
                 if c == "INF":
+                    print("---->Getting inflated coordinates")
                     coords = pial_to_inflated(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
                 elif c == "FSAVERAGE":
+                    print("---->Getting fsaverage coordinates")
                     coords = sub_to_fsaverage(subject, subjects_dir=subjects_dir, write_to_file=True, n_jobs=n_jobs)
         elif not op.isfile(coordFname):
             continue
@@ -87,6 +89,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
     # Get PTD values
     ptdFname = os.path.join(elecReconDir, 'GreyWhite_classifications.mat')
     if not op.isfile(ptdFname):
+        print("---->Getting PTD")
         ptd= get_ptd_index(subject, subjects_dir=subjects_dir, write_to_file=write_to_file)
     else:
         ptd = _read_ptd(ptdFname)
@@ -148,7 +151,12 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
     # Get parcellations (atlases)
     if parcs:
         # Find distance to nearest pial vertex and add as dist_to_surf_mm
-        dist_to_vert = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=elecTable.loc[:,["PIAL_x","PIAL_y", "PIAL_z"]].to_numpy().tolist(), hem=elecTable["hem"].to_list(), labels=elecTable["label"].to_list(), n_jobs=-1)
+        if "PIAL_x" in elecTable.columns:
+            coords_for_dist = elecTable.loc[:,["PIAL_x","PIAL_y", "PIAL_z"]].to_numpy().tolist()
+        else:
+            coords_for_dist = elecTable.loc[:,["PIAL"]].to_numpy().tolist()
+            
+        dist_to_vert = find_nearest_vertex(subject, subjects_dir=subjects_dir, surf="pial", coords=coords_for_dist, hem=elecTable["hem"].to_list(), labels=elecTable["label"].to_list(), n_jobs=-1)
         dist_df = dist_to_vert[["label", "distance"]].rename(columns={"distance": "dist_to_surf_mm"})
         elecTable = pd.merge(elecTable, dist_df, on="label")
 
@@ -158,6 +166,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
             atlas_fnames.append(os.path.join(subjects_dir, subject, "label", "lh."+atlas_info["annot_fname"] + ".annot"))
             atlas_fnames.append(os.path.join(subjects_dir, subject, "label", "rh."+atlas_info["annot_fname"] + ".annot"))
         if not all([os.path.isfile(f) for f in atlas_fnames]):
+            print("---->Creating parcellations")
             create_indiv_mapping(subject, subjects_dir=subjects_dir, n_jobs=n_jobs)
 
         # Get atlas labels by snapping electrode to surface
