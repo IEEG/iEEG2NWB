@@ -9,3 +9,4 @@ openpyxl
 PyQt5
 nibabel
 nilearn
+nwbinspector
