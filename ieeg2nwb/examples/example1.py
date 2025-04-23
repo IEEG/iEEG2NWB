@@ -60,7 +60,7 @@ ielvis_data = read_ielvis(subid, subjects_dir=subjects_dir, full=True)
 
 # %% Run ieeg2nwb
 
-from ieeg2nwb.converter_2 import IEEG2NWB
+from converter import IEEG2NWB
 
 subjects_dir = "/Applications/freesurfer/7.2.0/subjects"
 subject_id = "NS135"

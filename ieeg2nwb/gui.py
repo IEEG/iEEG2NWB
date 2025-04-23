@@ -342,7 +342,7 @@ class GUI(QMainWindow):
 
     def run(self):
         #from .iEEG2NWB import iEEG2NWB
-        from .converter_2 import IEEG2NWB
+        from .converter import IEEG2NWB
         params = self.getData()
         converter = IEEG2NWB()
         converter.parse_params(params)
