@@ -11,7 +11,7 @@ import nibabel as nib
 from nibabel.freesurfer.io import read_geometry
 from mne import get_config, read_freesurfer_lut
 from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _read_ielvis_base
-from ieeg2nwb.utils import _get_data_directory, timenow, get_atlases
+from ieeg2nwb.utils import _get_data_directory, timenow, get_atlases, copy_fsaverage_data
 from ieeg2nwb.fileio.freesurfer import read_xfm
 
 
@@ -154,16 +154,31 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
     # Set paths
     subject_label_dir = os.path.join(subjects_dir, subject, 'label')
     subject_surf_dir = os.path.join(subjects_dir, subject, 'surf')
-    fsavg_label_dir = os.path.join(subjects_dir, "fsaverage", "label")
+    fsavg_dir = os.path.join(subjects_dir, "fsaverage")
+    fsavg_label_dir = os.path.join(fsavg_dir, "label")
     
+    # 
+    lh_fname = os.path.join(subject_label_dir, "lh." + annot_fname + ".annot")
+    rh_fname = os.path.join(subject_label_dir, "rh." + annot_fname + ".annot")
+
     # Check which atlases still need to be made
     parcs_to_make = []
+    need_to_copy_fsavg = False
     for annot_fname in parc:
         lh_fname = os.path.join(subject_label_dir, "lh." + annot_fname + ".annot")
         rh_fname = os.path.join(subject_label_dir, "rh." + annot_fname + ".annot")
+        fsavg_lh_fname = os.path.join(fsavg_label_dir, "lh." + annot_fname + ".annot")
+        fsavg_rh_fname = os.path.join(fsavg_label_dir, "rh." + annot_fname + ".annot")
         if not os.path.isfile(lh_fname) or not os.path.isfile(rh_fname):
             parcs_to_make.append(annot_fname)
+        if not os.path.isfile(fsavg_lh_fname) or not os.path.isfile(fsavg_rh_fname):
+            need_to_copy_fsavg = True
 
+    # If some parcs are missing then get them from ieeg2nwb fsaverage copy
+    if need_to_copy_fsavg:
+        print("---->Copying files to fsaverage")
+        copy_fsaverage_data(fsavg_dir)
+    
     # If nothing to do, exit
     if len(parcs_to_make)==0:
         return

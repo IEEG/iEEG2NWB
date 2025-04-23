@@ -9,6 +9,8 @@ from tqdm import tqdm
 import yaml
 import json
 from importlib.resources import files
+import shutil
+import filecmp
 
 def create_chunk_indices(nsamples, step=10000):
     chunks = []
@@ -206,8 +208,7 @@ def read_aseg_csv():
     return pd.read_csv(aseg_csv)
 
 def copy_fsaverage_data(target_fsaverage):
-    import shutil
-    import filecmp
+    
     my_fsaverage = op.join(_get_data_directory(), 'fsaverage')
     # Walk through the source directory
     for dirpath, dirnames, filenames in os.walk(my_fsaverage):
