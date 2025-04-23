@@ -1,5 +1,5 @@
 import os
-from ieeg2nwb.ptd import get_ptd_index
+from ieeg2nwb.channels import get_ptd_index
 
 SUBID = "NS162_02"
 

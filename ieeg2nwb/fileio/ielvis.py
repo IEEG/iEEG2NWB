@@ -3,10 +3,9 @@ import pandas as pd
 import numpy as np
 import os.path as op
 from mne import get_config
-from ieeg2nwb.channels import sub_to_fsaverage, pial_to_inflated, elec_to_parc
+from ieeg2nwb.channels import sub_to_fsaverage, pial_to_inflated, elec_to_parc, get_ptd_index
 from ieeg2nwb.surfs import find_nearest_vertex, create_indiv_mapping
 from ieeg2nwb.fileio.helpers import _read_coordinates, _read_electrodeNames, _read_atlas_labels, _read_ptd
-from ieeg2nwb.ptd import get_ptd_index
 from ieeg2nwb.utils import get_atlases
 
 # subject = "NS162_02"
