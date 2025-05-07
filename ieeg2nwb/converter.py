@@ -1055,10 +1055,6 @@ class IEEG2NWB:
                     write_to_wav = ana.pop("externalize")
                     ana["write_to_wav"] = write_to_wav
 
-                if "write_to_wav" in ana.keys():
-                    tmp = str(ana['externalize']).upper()
-                    ana["write_to_wav"] = True if tmp in ['1','TRUE','YES','Y'] else False
-
                 if "comment" in ana.keys():
                     comments = ana.pop("comment")
                     ana["comments"] = comments
@@ -1080,7 +1076,12 @@ class IEEG2NWB:
         else:
             nwbfile_fname, _ = os.path.splitext(params['block'])
             nwbfile_fname = nwbfile_fname + '.nwb'
-
+            
+        # Check if the output directory exists and create if not
+        output_dir = os.path.split(nwbfile_fname)[0]        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
         self.write_nwb(nwbfile_fname)
 
 
