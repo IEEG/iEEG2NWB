@@ -220,7 +220,7 @@ class IEEG2NWB:
         corr_columns = list(corr_sheet.columns)
 
         # Get rid of all channels without labels
-        label_col_name = [col for col in corr_columns if col.lower() == 'label'][0]
+        label_col_name = [col for col in corr_columns if 'label' in col.lower()][0]
         corr_sheet.rename(columns={label_col_name: 'label'}, inplace=True)
         corr_sheet["label"] = corr_sheet["label"].str.strip()
         corr_sheet = corr_sheet[~corr_sheet["label"].isin(['[]', ''])]
@@ -1275,8 +1275,19 @@ def batch_file_process(batch_excel_file,create_path=False):
                 if len(v) > 0:
                     row_dict[k] = v
                     
-            # Add freesurfer directory
-
+            # Add freesurfer directory and subject directory
+            if 'freesurfer_subject_directory' not in row_dict.keys():
+                if 'freesurfer_subject_directory' not in df_vars.keys():
+                    print('Freesurfer directory has not been set!')
+                else:
+                    row_dict['freesurfer_subject_directory'] = df_vars['freesurfer_subject_directory']
+                    
+            if 'freesurfer_subject_id' not in row_dict.keys():
+                if 'subject_id_ns' not in df_vars.keys():
+                    print('Subject label not defined, freesurfer subject cannot be set!')
+                else:
+                    row_dict['freesurfer_subject_id'] = df_vars['subject_id_ns']
+                    
             # Create a yml file
             outfile = paramsdir + os.sep + '%s.yml' % blockfile
             with open(outfile, 'w') as file:
