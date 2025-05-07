@@ -33,8 +33,11 @@ def get_tdt_data(root, stores, ignore_missing=False, return_store_list=False):
                 raise ValueError(f"Store {s} not found in TDT block")
 
     if len(stream_list) == 0:
-        return None, None
-
+        if return_store_list:
+            return None, None, None
+        else:
+            return None, None
+        
     # Make sure they all have the same fs
     if not all(s.fs == stream_list[0].fs for s in stream_list):
         raise ValueError("All streams must have the same sampling frequency")

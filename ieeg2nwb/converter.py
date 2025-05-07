@@ -1001,7 +1001,7 @@ class IEEG2NWB:
         # Read data
         print('-----> Reading input: %s' % params['block'])
         eeg_chans = params.get('neurodata')
-        self.read_raw_data(params['block'], create_device=True)
+        self.read_raw_data(params['block'], create_device=True, eeg_chans=eeg_chans)
 
         # Get subject specific info and create subject
         subinfo = ['subject_id', 'sex', 'age', 'subject_description']
@@ -1274,6 +1274,8 @@ def batch_file_process(batch_excel_file,create_path=False):
             for k,v in subfields:
                 if len(v) > 0:
                     row_dict[k] = v
+                    
+            # Add freesurfer directory
 
             # Create a yml file
             outfile = paramsdir + os.sep + '%s.yml' % blockfile
