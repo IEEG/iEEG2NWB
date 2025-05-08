@@ -220,7 +220,7 @@ class IEEG2NWB:
         corr_columns = list(corr_sheet.columns)
 
         # Get rid of all channels without labels
-        label_col_name = [col for col in corr_columns if col.lower() == 'label'][0]
+        label_col_name = [col for col in corr_columns if 'label' in col.lower()][0]
         corr_sheet.rename(columns={label_col_name: 'label'}, inplace=True)
         corr_sheet["label"] = corr_sheet["label"].str.strip()
         corr_sheet = corr_sheet[~corr_sheet["label"].isin(['[]', ''])]
@@ -1001,7 +1001,7 @@ class IEEG2NWB:
         # Read data
         print('-----> Reading input: %s' % params['block'])
         eeg_chans = params.get('neurodata')
-        self.read_raw_data(params['block'], create_device=True)
+        self.read_raw_data(params['block'], create_device=True, eeg_chans=eeg_chans)
 
         # Get subject specific info and create subject
         subinfo = ['subject_id', 'sex', 'age', 'subject_description']
@@ -1055,10 +1055,6 @@ class IEEG2NWB:
                     write_to_wav = ana.pop("externalize")
                     ana["write_to_wav"] = write_to_wav
 
-                if "write_to_wav" in ana.keys():
-                    tmp = str(ana['externalize']).upper()
-                    ana["write_to_wav"] = True if tmp in ['1','TRUE','YES','Y'] else False
-
                 if "comment" in ana.keys():
                     comments = ana.pop("comment")
                     ana["comments"] = comments
@@ -1080,7 +1076,12 @@ class IEEG2NWB:
         else:
             nwbfile_fname, _ = os.path.splitext(params['block'])
             nwbfile_fname = nwbfile_fname + '.nwb'
-
+            
+        # Check if the output directory exists and create if not
+        output_dir = os.path.split(nwbfile_fname)[0]        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
         self.write_nwb(nwbfile_fname)
 
 
@@ -1159,24 +1160,25 @@ def batch_file_process(batch_excel_file,create_path=False):
                 if cname.startswith("analog"):
                     ana_cname = cname.split("_")[0]
                     if ana_cname not in analog_prefixes:
-                        analog_prefixes.append(cname)
+                        analog_prefixes.append(ana_cname)
 
-
-            #analog_prefixes = ['analog1','analog2','analog3','analog4','analog5','analog6']
-            fields2add = ['name', 'store', 'channels', 'description', 'comments']
+            fields2add = ['name', 'store', 'channels', 'description', 'comments', 'externalize']
             analist = []
             for a in analog_prefixes:
                 # If name doesn't exist, then it isn't there
                 ana_name = a + '_name'
                 if ana_name not in row_dict.keys():
                     continue
-
-                new_ana = {}
-                for f in fields2add:
-                    field2find = a + '_' + f
-                    if field2find in row_dict.keys():
-                        new_ana[f] = row_dict[field2find]
-                        row_dict.pop(field2find)
+                else:
+                    new_ana = {}
+                    for f in fields2add:
+                        field2find = a + '_' + f
+                        if field2find in row_dict.keys():
+                            if 'externalize' in field2find:
+                                new_ana[f] = bool(int(float(row_dict[field2find])))
+                            else:
+                                new_ana[f] = row_dict[field2find]
+                            row_dict.pop(field2find)
 
                 if 'channels' in new_ana.keys():
                     new_ana['channels'] = [int(float(x)) for x in new_ana.get('channels').split(',')]
@@ -1189,9 +1191,8 @@ def batch_file_process(batch_excel_file,create_path=False):
                 if cname.startswith("digital"):
                     dig_cname = cname.split("_")[0]
                     if dig_cname not in digital_prefixes:
-                        digital_prefixes.append(cname)
+                        digital_prefixes.append(dig_cname)
             
-            #digital_prefixes = ['digital1','digital2','digital3']
             fields2add = ['name', 'stores', 'description', 'comments']
             diglist = []
             for d in digital_prefixes:
@@ -1211,21 +1212,37 @@ def batch_file_process(batch_excel_file,create_path=False):
 
             # Define output Path
             if 'output' not in row_dict.keys():
-                if 'session_id' in row_dict.keys() and 'task' in row_dict.keys():
-                    outputName = 'sub-' + df_vars['subject_id'] + '_ses-' + row_dict['session_id'] + '_task-' + row_dict['task']
+                if 'session_id' in df_vars.keys() and 'task' in row_dict.keys():
+                    outputName = '{:s}_{:s}_task-{:s}'.format(df_vars['subject_id_bids'],
+                                                              df_vars['session_id'],
+                                                              row_dict['task'])
                     if 'acq' in row_dict.keys():
                         outputName = outputName + '_acq-' + row_dict['acq']
                     if 'run' in row_dict.keys():
-                        outputName = outputName + '_run-' + row_dict['run']
+                        outputName = '{:s}_run-{:02d}'.format(outputName, 
+                                                              int(row_dict['run']))
                 else:
                     outputName, _ = os.path.splitext(blockfile)
                     outputName = outputName + '.nwb'
                     
                 if 'output_path' in df_vars.keys():
-                    row_dict['output'] = df_vars['output_path'] + '/' + outputName
+                    outputName = df_vars['output_path'] + '/' + df_vars['session_id'] + '/ieeg/' + outputName
                 else:
                     row_dict['output'] = outputName
-
+                    
+                if not outputName.endswith('_ieeg.nwb'):
+                    outputName += '_ieeg.nwb'
+                    
+                row_dict['output'] = outputName
+                
+            # Create output for external wave file (microphone)
+            idx_mic = np.where([ana['name'] == 'mic' for ana in analist])[0]
+            
+            if len(idx_mic) == 1:
+                
+                if row_dict['output'].endswith('_ieeg.nwb'):
+                    row_dict['mic_output'] = row_dict['output'].replace('_ieeg.nwb', '_physio.tsv.gz')
+                
             # add subject level data if necessary
             if 'labelfile' not in row_dict.keys():
                 if 'corr_sheet' in df_vars.keys():
@@ -1233,8 +1250,8 @@ def batch_file_process(batch_excel_file,create_path=False):
                 else:
                     print('electrode correspondence sheet could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "corr_sheet"')
             if 'subject_id' not in row_dict.keys():
-                if 'subject_id' in df_vars.keys():
-                    row_dict['subject_id'] = df_vars['subject_id']
+                if 'subject_id_bids' in df_vars.keys():
+                    row_dict['subject_id'] = df_vars['subject_id_bids']
                 else:
                     print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "subject_id"')
             if 'sex' not in row_dict.keys():
@@ -1249,7 +1266,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "age"')
             if 'subject_description' not in row_dict.keys():
                 if 'subject_description' in df_vars.keys():
-                    row_dict['subject_id'] = df_vars['subject_id']
+                    row_dict['subject_id'] = df_vars['subject_id_bids']
                 else:
                     print('subject description could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "subject_description"')
 
@@ -1258,7 +1275,20 @@ def batch_file_process(batch_excel_file,create_path=False):
             for k,v in subfields:
                 if len(v) > 0:
                     row_dict[k] = v
-
+                    
+            # Add freesurfer directory and subject directory
+            if 'freesurfer_subject_directory' not in row_dict.keys():
+                if 'freesurfer_subject_directory' not in df_vars.keys():
+                    print('Freesurfer directory has not been set!')
+                else:
+                    row_dict['freesurfer_subject_directory'] = df_vars['freesurfer_subject_directory']
+                    
+            if 'freesurfer_subject_id' not in row_dict.keys():
+                if 'subject_id_ns' not in df_vars.keys():
+                    print('Subject label not defined, freesurfer subject cannot be set!')
+                else:
+                    row_dict['freesurfer_subject_id'] = df_vars['subject_id_ns']
+                    
             # Create a yml file
             outfile = paramsdir + os.sep + '%s.yml' % blockfile
             with open(outfile, 'w') as file:
