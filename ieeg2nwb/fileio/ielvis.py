@@ -92,7 +92,12 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
         ptd= get_ptd_index(subject, subjects_dir=subjects_dir, write_to_file=write_to_file)
     else:
         ptd = _read_ptd(ptdFname)
+
+    # Format the ptd elec labels
+    for ii in range( len(ptd['elec']) ):
+        ptd['elec'][ii] = ptd['elec'][ii].split('_')[0]
     
+    # Convert PTD data to DataFrame to combine
     ptd['label'] = ptd['elec']
     ptd_df = pd.DataFrame(ptd)
     cols2keep = ['label','location','PTD']

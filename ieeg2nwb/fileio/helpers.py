@@ -64,8 +64,11 @@ def _read_ptd(ptdFname):
     )
 
     ptd = ptd_tmp['PTD_idx']
-    for ii in range( len(ptd['elec']) ):
-        ptd['elec'][ii] = ptd['elec'][ii].split('_')[0]
+
+    # Make all of the numpy arrays into lists
+    ptd["PTD"] = ptd["PTD"].tolist()
+    ptd["nb_Wpix"] = ptd["nb_Wpix"].tolist()
+    ptd["nb_Gpix"] = ptd["nb_Gpix"].tolist()
 
     return ptd
 
