@@ -171,9 +171,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
             atlas_fnames.append(os.path.join(subjects_dir, subject, "label", "rh."+atlas_info["annot_fname"] + ".annot"))
         if not all([os.path.isfile(f) for f in atlas_fnames]):
             print("---->Creating parcellations")
-            
-            create_indiv_mapping(subject, subjects_dir=subjects_dir, parc='HCP-MMP1', n_jobs=n_jobs)
-            # create_indiv_mapping(subject, subjects_dir=subjects_dir, n_jobs=n_jobs)
+            create_indiv_mapping(subject, subjects_dir=subjects_dir, n_jobs=n_jobs)
 
         # Get atlas labels by snapping electrode to surface
         if squeeze:
