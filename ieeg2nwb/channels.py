@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import os
-from nibabel.freesurfer.io import read_geometry, read_annot, write_annot
+from nibabel.freesurfer.io import read_geometry, read_annot
 from joblib import Parallel, delayed
 import os.path as op
 import pandas as pd
@@ -15,7 +15,7 @@ from ieeg2nwb.fileio.helpers import _read_electrodeNames, _read_coordinates, _re
 from ieeg2nwb.utils import _get_data_directory, timenow, get_atlases, read_aseg_csv
 from ieeg2nwb.fileio.freesurfer import read_xfm
 from ieeg2nwb.surfs import find_nearest_vertex
-
+    
 def elec_to_parc(
     subject: str,
     subjects_dir: str = None,
