@@ -297,7 +297,7 @@ class IEEG2NWB:
 
         #return elecs_dict
 
-    def process_correspondence_sheet(self):
+    def process_correspondence_sheet(self, update=True):
         """Add info to correspondence sheet and prepare it to become ElectrodeTable"""
 
         # Parameters for the columns of the electrode table
@@ -314,46 +314,54 @@ class IEEG2NWB:
         subject_id = self.freesurfer_subject_id
         subjects_dir = self.freesurfer_subject_dir
 
-        # Get ielvis data
-        elecs_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False, parcs=True)
-        
-        # Remove spec column from elecs_df because correspondence sheet should have
-        elecs_df = elecs_df.drop(columns=["spec"])
-        
-        # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
-        n_columns_corr = len(corr_sheet.columns)
-        if n_columns_corr > 11:
-            corr_sheet = corr_sheet.iloc[:, :11]
+        if update:
+                
+            # Get ielvis data
+            elecs_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False, parcs=True)
+            
+            # Remove spec column from elecs_df because correspondence sheet should have
+            elecs_df = elecs_df.drop(columns=["spec"])
+            
+            # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
+            n_columns_corr = len(corr_sheet.columns)
+            if n_columns_corr > 11:
+                corr_sheet = corr_sheet.iloc[:, :11]
+            else:
+               corr_sheet = corr_sheet.iloc[:, :n_columns_corr] 
+    
+            # Check for labels in elecs_df that aren't in corr_sheet
+            elecs_df_labels = set(elecs_df["label"].str.lower())
+            corr_sheet_labels = set(corr_sheet["label"].str.lower())
+            missing_from_corr = elecs_df_labels - corr_sheet_labels
+            if len(missing_from_corr) > 0:
+                warnings.warn(f"Found labels in ielvis that are not in correspondence sheet: {missing_from_corr}")
+    
+            # Check for labels in corr_sheet that aren't in elecs_df
+            missing_from_ielvis = corr_sheet_labels - elecs_df_labels
+            if len(missing_from_ielvis) > 0:
+                print(f"Found labels in correspondence sheet that are not in ielvis: {missing_from_ielvis}")
+    
+            # Merge while preserving order of corr_sheet labels
+            # Create temporary lowercase columns for case-insensitive merge
+            corr_sheet['label_lower'] = corr_sheet['label'].str.lower()
+            elecs_df['label_lower'] = elecs_df['label'].str.lower()
+            
+            elecs_df = pd.merge(corr_sheet, elecs_df,
+                               left_on="label_lower",
+                               right_on="label_lower", 
+                               how="outer",
+                               sort=False,
+                               suffixes=(None, '_drop')).reindex(corr_sheet.index)
+            
+            # Drop temporary lowercase columns
+            elecs_df = elecs_df.drop(columns=['label_lower'])
+            
         else:
-           corr_sheet = corr_sheet.iloc[:, :n_columns_corr] 
-
-        # Check for labels in elecs_df that aren't in corr_sheet
-        elecs_df_labels = set(elecs_df["label"].str.lower())
-        corr_sheet_labels = set(corr_sheet["label"].str.lower())
-        missing_from_corr = elecs_df_labels - corr_sheet_labels
-        if len(missing_from_corr) > 0:
-            warnings.warn(f"Found labels in ielvis that are not in correspondence sheet: {missing_from_corr}")
-
-        # Check for labels in corr_sheet that aren't in elecs_df
-        missing_from_ielvis = corr_sheet_labels - elecs_df_labels
-        if len(missing_from_ielvis) > 0:
-            print(f"Found labels in correspondence sheet that are not in ielvis: {missing_from_ielvis}")
-
-        # Merge while preserving order of corr_sheet labels
-        # Create temporary lowercase columns for case-insensitive merge
-        corr_sheet['label_lower'] = corr_sheet['label'].str.lower()
-        elecs_df['label_lower'] = elecs_df['label'].str.lower()
+            
+            elecs_df = corr_sheet
         
-        elecs_df = pd.merge(corr_sheet, elecs_df,
-                           left_on="label_lower",
-                           right_on="label_lower", 
-                           how="outer",
-                           sort=False,
-                           suffixes=(None, '_drop')).reindex(corr_sheet.index)
-        
-        # Drop any duplicate label columns and temporary lowercase columns
+        # Drop any duplicate label columns 
         elecs_df = elecs_df.loc[:, ~elecs_df.columns.str.endswith('_drop')]
-        elecs_df = elecs_df.drop(columns=['label_lower'])
 
         # Sort by the "channel" column
         elecs_df = elecs_df.sort_values(by="channel").reset_index(drop=True)
@@ -379,6 +387,10 @@ class IEEG2NWB:
             col_settings = cols_for_table[c]
             is_required = col_settings['required']
             in_ielvis = False
+            
+            if 'default' in col_settings.keys():
+                if col_settings['default'] == 999:
+                    col_settings['default'] = np.nan
 
             # Find the column
             colfound = []
@@ -1031,8 +1043,12 @@ class IEEG2NWB:
             freesurfer_subject_directory = op.dirname(op.dirname(op.dirname(labelfile_path)))
 
         # Read correspondence sheet
-        self.read_correspondence_sheet()
-        self.process_correspondence_sheet()
+        if 'labelfile' in params.keys():
+            self.read_correspondence_sheet(correspondence_sheet=params['labelfile'])
+        else:
+            self.read_correspondence_sheet()
+            
+        self.process_correspondence_sheet(update=params['update_elec_table'])
 
         # Create electrode table and all necessary variables
         self.create_electrode_groups()
@@ -1212,12 +1228,19 @@ def batch_file_process(batch_excel_file,create_path=False):
 
             # Define output Path
             if 'output' not in row_dict.keys():
-                if 'session_id' in df_vars.keys() and 'task' in row_dict.keys():
-                    outputName = '{:s}_{:s}_task-{:s}'.format(df_vars['subject_id_bids'],
-                                                              df_vars['session_id'],
-                                                              row_dict['task'])
+                
+                if 'subject_id_bids' in df_vars.keys():
+                    outputName = df_vars['subject_id_bids']
+                elif'subject' in df_vars.keys():
+                    outputName = df_vars['subject_id']
+                
+                if 'outputName' in locals():
+                    if 'session_id' in row_dict.keys(): 
+                        outputName = outputName + '_ses-{:02d}'.format(int(row_dict['session_id']))
                     if 'acq' in row_dict.keys():
                         outputName = outputName + '_acq-' + row_dict['acq']
+                    if 'task' in row_dict.keys():
+                        outputName = outputName + '_task-' + row_dict['task']
                     if 'run' in row_dict.keys():
                         outputName = '{:s}_run-{:02d}'.format(outputName, 
                                                               int(row_dict['run']))
@@ -1226,7 +1249,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     outputName = outputName + '.nwb'
                     
                 if 'output_path' in df_vars.keys():
-                    outputName = df_vars['output_path'] + '/' + df_vars['session_id'] + '/ieeg/' + outputName
+                    outputName = df_vars['output_path'] + '/' + outputName
                 else:
                     row_dict['output'] = outputName
                     
@@ -1266,10 +1289,15 @@ def batch_file_process(batch_excel_file,create_path=False):
                     print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "age"')
             if 'subject_description' not in row_dict.keys():
                 if 'subject_description' in df_vars.keys():
-                    row_dict['subject_id'] = df_vars['subject_id_bids']
+                    row_dict['subject_description'] = df_vars['subject_description']
                 else:
                     print('subject description could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "subject_description"')
-
+            if 'update_elec_table' not in row_dict.keys():
+                if 'update_elec_table' in df_vars.keys():
+                    row_dict['update_elec_table'] = bool(int(df_vars['update_elec_table']))
+                else:
+                    row_dict['update_elec_table'] = True
+            
             # Add digital analog
             subfields = zip(['analog', 'digital'], [analist, diglist])
             for k,v in subfields:
@@ -1284,10 +1312,10 @@ def batch_file_process(batch_excel_file,create_path=False):
                     row_dict['freesurfer_subject_directory'] = df_vars['freesurfer_subject_directory']
                     
             if 'freesurfer_subject_id' not in row_dict.keys():
-                if 'subject_id_ns' not in df_vars.keys():
+                if 'subject_id' not in df_vars.keys():
                     print('Subject label not defined, freesurfer subject cannot be set!')
                 else:
-                    row_dict['freesurfer_subject_id'] = df_vars['subject_id_ns']
+                    row_dict['freesurfer_subject_id'] = df_vars['subject_id']
                     
             # Create a yml file
             outfile = paramsdir + os.sep + '%s.yml' % blockfile
