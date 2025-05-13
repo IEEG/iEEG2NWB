@@ -18,7 +18,18 @@
                 "search": "(?:elecSpec|spec*)",
                 "description": "type of channel",
                 "type": "string",
-                "required": true
+                "required": true,
+                "replace": {
+                    "depth": "seeg",
+                    "hd_depth": "seeg",
+                    "seeg": "seeg",
+                    "hseeg": "seeg",
+                    "strip": "ecog",
+                    "hd_strip": "ecog",
+                    "grid": "ecog",
+                    "hd_grid": "ecog",
+                    "ecog": "ecog"
+                }
             },
             "x": {
                 "title": "x",
