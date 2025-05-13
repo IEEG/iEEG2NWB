@@ -127,6 +127,8 @@ class IEEG2NWB:
 
         self.nwbfile = NWBFile(description, str(uuid4()), start_time)
 
+
+
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
         """Create subject object."""
         subject = Subject(
@@ -425,6 +427,12 @@ class IEEG2NWB:
                     elecs_df[colfound[0]] = elecs_df[colfound[0]].astype(col_settings['type'])
                 except ValueError:
                     elecs_df[colfound[0]].replace("None", "0").astype(col_settings['type'])
+
+            # Replace values
+            if "replace" in col_settings:
+                for idx, val in elecs_df[colfound[0]].items():
+                    if val in col_settings["replace"]:
+                        elecs_df.at[idx, colfound[0]] = col_settings["replace"][val]
 
             # Append dynamic_columns and mark this column as being kept
             if (len(colfound) > 0) | is_required | in_ielvis:
@@ -1008,6 +1016,64 @@ class IEEG2NWB:
             self.hdf5_files.append((tmp_filename, f))
 
 
+    def write_json_sidecar(self, filename=None, **kwargs):
+        """Write json sidecar file as per BIDS specification
+
+        Input kwargs are keywords used in BIDS sidecar
+        """
+
+        # Get number of types of channels
+        chan_count = self.correspondence_table["spec"].value_counts().to_dict()
+
+        # Get recording duration
+        recording_dur = self.nwbfile.acquisition['ieeg'].data.shape[0] / self.nwbfile.acquisition['ieeg'].rate
+
+        # Add a dataset descriptor
+        json_dict = {
+            "iEEGReference": "intracranial electrode not included with data",
+            "SamplingFrequency": self.nwbfile.acquisition['ieeg'].rate,  
+            "PowerLineFrequency": int(60),
+            "SoftwareFilters": "n/a",  
+            "HardwareFilters": "n/a",
+            "ElectrodeManufacturer": "AdTech",
+            "ECOGChannelCount": chan_count["ecog"] if "ecog" in chan_count else 0,
+            "SEEGChannelCount": chan_count["seeg"] if "seeg" in chan_count else 0,
+            "EEGChannelCount": int(0),
+            "EOGChannelCount": int(0),
+            "ECGChannelCount": int(0),
+            "EMGChannelCount": int(0),
+            "MiscChannelCount": int(0),
+            "TriggerChannelCount": int(0),
+            "RecordingDuration": recording_dur,
+            "RecordingType": "continuous",
+            "Manufacturer": "Tucker Davis Technologies",       
+            "TaskName": self.nwbfile.session_id,          
+            "TaskDescription": self.nwbfile.session_description,            
+            "InstitutionName": self.nwbfile.institution,
+        }
+
+        # Loop through kwargs and update json_dict if keys match (case insensitive)
+        for key, value in kwargs.items():
+            # Check if key exists in json_dict (case insensitive)
+            matching_key = next((k for k in json_dict.keys() if k.lower() == key.lower()), None)
+            if matching_key:
+                json_dict[matching_key] = value
+
+        if filename is None:
+            filename = self.output_file
+        
+        if filename is None:
+            raise ValueError("No output filename provided")
+            
+        # Make sure filename ends with .json
+        if not filename.endswith('.json'):
+            filename += '.json'
+            
+        # Write json_dict to file
+        with open(filename, 'w') as f:
+            json.dump(json_dict, f, indent=4)
+
+
     def write_nwb(self, nwb_file=None):
         """Write the NWB file."""
         if nwb_file is None and self.output_file is None:
@@ -1019,12 +1085,20 @@ class IEEG2NWB:
         if not nwb_file.endswith('.nwb'):
             nwb_file += '.nwb'
 
+        # Save the output filename being used
+        self.output_file = nwb_file.strip(".nwb")
+
         # If available annotations haven't been added then add them
         if len(self.annotations["timestamps"]) > 0 and "annotations" not in self.nwbfile.acquisition.keys():
             self.add_annotations()
 
+        # If some data is None or missing, add it in using default settings
+        if self.nwbfile.lab is None: self.nwbfile.lab = self._params["lab"]
+        if self.nwbfile.institution is None: self.nwbfile.institution = self._params["institution"]
+        
         # Write the NWB file
         with NWBHDF5IO(nwb_file, 'w') as io:
+            print(f"---> Writing to {nwb_file}")
             io.write(self.nwbfile, link_data=False)
 
         # Close the h5 files
@@ -1036,6 +1110,9 @@ class IEEG2NWB:
         # Close EDF file
         if self.raw_data_type == "edf":
             self.raw_data.close()
+
+        # Write out the json file
+        self.write_json_sidecar(self.output_file)
 
     def parse_params(self, params):
         """Run the entire converter given params."""
@@ -1369,8 +1446,10 @@ def batch_file_process(batch_excel_file,create_path=False):
             inwb = IEEG2NWB()
             inwb.parse_params(row_dict)
 
-        except:
+        except Exception as e:
             print('*' * 200)
+            print(e)
+            print('*' * 10)
             print('Error processing %s. Skipping to next file' % blockfile)
             print('*' * 200)
 
