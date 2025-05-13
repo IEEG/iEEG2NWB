@@ -255,6 +255,7 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
     #%% Define required columns
     columns_req = ['Good', 'Spec', 'SOZ'	, 'Spikey', 'Out', 'hem', 'ptd', 
                    'fsaverage_coords_1', 'fsaverage_coords_2', 'fsaverage_coords_3',
+                   'fsaverage_inf_1', 'fsaverage_inf_2', 'fsaverage_inf_3',
                    'lepto_coords_1', 'lepto_coords_2', 'lepto_coords_3', 
                    'aparc_aseg', 'Desikan_Killiany', 'Destrieux', 'Yeo7', 'Yeo17', 'HCP', 
                    'dist']
@@ -262,6 +263,7 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
     # ielvis datasheet is named consistently, but different from correspondence sheet
     columns_req_ielvis = ['N/A', 'spec', 'N/A', 'N/A', 'N/A', 'hem', 'ptd', 
                    'fsaverage_x', 'fsaverage_y', 'fsaverage_z',
+                   'fsaverage_inf_x', 'fsaverage_inf_y', 'fsaverage_inf_z',
                    'lepto_x', 'lepto_y', 'lepto_z', 
                    'aparc_aseg', 'dk_atlas', 'd_atlas', 'y7_atlas', 'y17_atlas', 'hcp_atlas', 
                    'dist_to_surf_mm']

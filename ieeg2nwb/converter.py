@@ -20,6 +20,7 @@ import gzip
 from datetime import datetime
 from dateutil.tz import tzlocal
 from datetime import timedelta
+import soundfile as sf
 import tdt
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 from pynwb import NWBHDF5IO
@@ -385,6 +386,9 @@ class IEEG2NWB:
 
         # Go through columns
         for c in cols_for_table.keys():
+            
+            print(c)
+            
             col_settings = cols_for_table[c]
             is_required = col_settings['required']
             in_ielvis = False
@@ -798,9 +802,7 @@ class IEEG2NWB:
                     analog_array = analog_array.T
                     
                 # Write data to a wav file
-                if '.wav' in eac['file']:
-                       
-                    import soundfile as sf
+                if '.wav' in eac['file']:    
                     sf.write(eac['file'], analog_array, round(fs), format='WAV')
                     
                 # Write data to a tsv.gz file 

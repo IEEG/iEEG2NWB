@@ -44,6 +44,54 @@
                 "type": "float",
                 "required": true
             },
+            "lepto_x": {
+                "title": "lepto_x",
+                "search": "(?:LEPTO_COORDS_1|LEPTO_1|LEPTO_x)",
+                "description": "the x coordinate of the channel location in native leptomeningeal space",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
+            "lepto_y": {
+                "title": "lepto_y",
+                "search": "(?:LEPTO_COORDS_2|LEPTO_2|LEPTO_y)",
+                "description": "the y coordinate of the channel location native leptomeningeal space",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
+            "lepto_z": {
+                "title": "lepto_z",
+                "search": "(?:LEPTO_COORDS_3|LEPTO_3|LEPTO_z)",
+                "description": "the z coordinate of the channel location native leptomeningeal space",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
+            "infl_x": {
+                "title": "infl_x",
+                "search": "(?:fsaverage_inf_1|fsaverage_inf_x)",
+                "description": "the x coordinate of the channel location in freesurfer average (fsaverage) inflated surface",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
+            "infl_y": {
+                "title": "infl_y",
+                "search": "(?:Lfsaverage_inf_2|fsaverage_inf_y)",
+                "description": "the y coordinate of the channel location in freesurfer average (fsaverage) inflated surface",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
+            "infl_z": {
+                "title": "infl_z",
+                "search": "(?:fsaverage_inf_3|fsaverage_inf_z)",
+                "description": "the z coordinate of the channel location in freesurfer average (fsaverage) inflated surface",
+                "default": 999.0,
+                "type": "float",
+                "required": false
+            },
             "aparc_aseg_atlas": {
                 "title": "aparc_aseg_atlas",
                 "search": "(?:FS_vol|AparcAseg_Atlas|aparc_aseg)",
@@ -76,30 +124,6 @@
                 "description": "the name of the ElectrodeGroup this electrode is a part of",
                 "type": "string",
                 "required": true
-            },
-            "lepto_x": {
-                "title": "lepto_x",
-                "search": "(?:LEPTO_COORDS_1|LEPTO_1|LEPTO_x)",
-                "description": "the x coordinate of the channel location in native leptomeningeal space",
-                "default": 999.0,
-                "type": "float",
-                "required": false
-            },
-            "lepto_y": {
-                "title": "lepto_y",
-                "search": "(?:LEPTO_COORDS_2|LEPTO_2|LEPTO_y)",
-                "description": "the y coordinate of the channel location native leptomeningeal space",
-                "default": 999.0,
-                "type": "float",
-                "required": false
-            },
-            "lepto_z": {
-                "title": "lepto_z",
-                "search": "(?:LEPTO_COORDS_3|LEPTO_3|LEPTO_z)",
-                "description": "the z coordinate of the channel location native leptomeningeal space",
-                "default": 999.0,
-                "type": "float",
-                "required": false
             },
             "soz": {
                 "title": "soz",
