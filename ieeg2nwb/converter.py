@@ -388,9 +388,7 @@ class IEEG2NWB:
 
         # Go through columns
         for c in cols_for_table.keys():
-            
-            print(c)
-            
+
             col_settings = cols_for_table[c]
             is_required = col_settings['required']
             in_ielvis = False
