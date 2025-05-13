@@ -16,6 +16,7 @@ import os
 import os.path as op
 import glob
 import re
+import gzip
 from datetime import datetime
 from dateutil.tz import tzlocal
 from datetime import timedelta
@@ -299,7 +300,7 @@ class IEEG2NWB:
 
         #return elecs_dict
 
-    def process_correspondence_sheet(self):
+    def process_correspondence_sheet(self, update=True):
         """Add info to correspondence sheet and prepare it to become ElectrodeTable"""
 
         # Parameters for the columns of the electrode table
@@ -316,46 +317,54 @@ class IEEG2NWB:
         subject_id = self.freesurfer_subject_id
         subjects_dir = self.freesurfer_subject_dir
 
-        # Get ielvis data
-        elecs_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False, parcs=True)
-        
-        # Remove spec column from elecs_df because correspondence sheet should have
-        elecs_df = elecs_df.drop(columns=["spec"])
-        
-        # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
-        n_columns_corr = len(corr_sheet.columns)
-        if n_columns_corr > 11:
-            corr_sheet = corr_sheet.iloc[:, :11]
+        if update:
+                
+            # Get ielvis data
+            elecs_df = read_ielvis(subject=subject_id, subjects_dir=subjects_dir, squeeze=False, parcs=True)
+            
+            # Remove spec column from elecs_df because correspondence sheet should have
+            elecs_df = elecs_df.drop(columns=["spec"])
+            
+            # Take first 11 columns from corr_sheet and merge with ielvis_df on label column
+            n_columns_corr = len(corr_sheet.columns)
+            if n_columns_corr > 11:
+                corr_sheet = corr_sheet.iloc[:, :11]
+            else:
+               corr_sheet = corr_sheet.iloc[:, :n_columns_corr] 
+    
+            # Check for labels in elecs_df that aren't in corr_sheet
+            elecs_df_labels = set(elecs_df["label"].str.lower())
+            corr_sheet_labels = set(corr_sheet["label"].str.lower())
+            missing_from_corr = elecs_df_labels - corr_sheet_labels
+            if len(missing_from_corr) > 0:
+                warnings.warn(f"Found labels in ielvis that are not in correspondence sheet: {missing_from_corr}")
+    
+            # Check for labels in corr_sheet that aren't in elecs_df
+            missing_from_ielvis = corr_sheet_labels - elecs_df_labels
+            if len(missing_from_ielvis) > 0:
+                print(f"Found labels in correspondence sheet that are not in ielvis: {missing_from_ielvis}")
+    
+            # Merge while preserving order of corr_sheet labels
+            # Create temporary lowercase columns for case-insensitive merge
+            corr_sheet['label_lower'] = corr_sheet['label'].str.lower()
+            elecs_df['label_lower'] = elecs_df['label'].str.lower()
+            
+            elecs_df = pd.merge(corr_sheet, elecs_df,
+                               left_on="label_lower",
+                               right_on="label_lower", 
+                               how="outer",
+                               sort=False,
+                               suffixes=(None, '_drop')).reindex(corr_sheet.index)
+            
+            # Drop temporary lowercase columns
+            elecs_df = elecs_df.drop(columns=['label_lower'])
+            
         else:
-           corr_sheet = corr_sheet.iloc[:, :n_columns_corr] 
-
-        # Check for labels in elecs_df that aren't in corr_sheet
-        elecs_df_labels = set(elecs_df["label"].str.lower())
-        corr_sheet_labels = set(corr_sheet["label"].str.lower())
-        missing_from_corr = elecs_df_labels - corr_sheet_labels
-        if len(missing_from_corr) > 0:
-            warnings.warn(f"Found labels in ielvis that are not in correspondence sheet: {missing_from_corr}")
-
-        # Check for labels in corr_sheet that aren't in elecs_df
-        missing_from_ielvis = corr_sheet_labels - elecs_df_labels
-        if len(missing_from_ielvis) > 0:
-            print(f"Found labels in correspondence sheet that are not in ielvis: {missing_from_ielvis}")
-
-        # Merge while preserving order of corr_sheet labels
-        # Create temporary lowercase columns for case-insensitive merge
-        corr_sheet['label_lower'] = corr_sheet['label'].str.lower()
-        elecs_df['label_lower'] = elecs_df['label'].str.lower()
+            
+            elecs_df = corr_sheet
         
-        elecs_df = pd.merge(corr_sheet, elecs_df,
-                           left_on="label_lower",
-                           right_on="label_lower", 
-                           how="outer",
-                           sort=False,
-                           suffixes=(None, '_drop')).reindex(corr_sheet.index)
-        
-        # Drop any duplicate label columns and temporary lowercase columns
+        # Drop any duplicate label columns 
         elecs_df = elecs_df.loc[:, ~elecs_df.columns.str.endswith('_drop')]
-        elecs_df = elecs_df.drop(columns=['label_lower'])
 
         # Sort by the "channel" column
         elecs_df = elecs_df.sort_values(by="channel").reset_index(drop=True)
@@ -381,6 +390,10 @@ class IEEG2NWB:
             col_settings = cols_for_table[c]
             is_required = col_settings['required']
             in_ielvis = False
+            
+            if 'default' in col_settings.keys():
+                if col_settings['default'] == 999:
+                    col_settings['default'] = np.nan
 
             # Find the column
             colfound = []
@@ -634,23 +647,8 @@ class IEEG2NWB:
         self.nwbfile.add_acquisition(annotations)
 
 
-    def _create_timeseries(self, name, data, fs, description=None, comments=None, unit="volts", write_to_wav=False):
+    def _create_timeseries(self, name, data, fs, description=None, comments=None, unit="volts"):
         """Create the TimeSeries object."""
-        if write_to_wav:
-            if self.output_file:
-                wav_fname = op.splitext(self.output_file)[0] + f"_{name}.wav"
-            else:
-                wav_fname = op.splitext(self.raw_data_file)[0] + f"_{name}.wav"
-
-
-
-            import soundfile as sf
-            dim1, dim2 = data.shape
-            if dim1 < dim2:
-                data = data.T
-            print(f"---> Writing {name} to {wav_fname}")
-            sf.write(wav_fname, data, round(fs))
-
 
         if comments is None:
             comments = "no comments"
@@ -739,7 +737,7 @@ class IEEG2NWB:
 
             # Get all stores
             # analog_array = self.raw_data.get_data()[eac["channels"], :]
-            analog_array = self.raw_data.get_data(eac["channels"])
+            analog_array = self.raw_data.get_data(np.array(eac["channels"])-1)
             fs = self.raw_data.info["sfreq"]
 
             if "unit" in eac.keys():
@@ -777,12 +775,12 @@ class IEEG2NWB:
             # Get all stores
             analog_array, fs = get_tdt_data(self.raw_data, eac["store"])
 
-            if "channel" not in eac.keys():
-                eac["channel"] = None
+            if "channels" not in eac.keys():
+                eac["channels"] = None
 
             # Take only the data from the channels that are in the correspondence table
-            if eac["channel"] is not None:
-                analog_array = analog_array[eac["channel"], :]
+            if eac["channels"] is not None:
+                analog_array = analog_array[np.array(eac["channels"])-1, :]
 
             if "unit" in eac.keys():
                 unit = eac["unit"]
@@ -794,15 +792,55 @@ class IEEG2NWB:
             else:
                 comments = None
 
+            # Format data when writing to file
+            if eac['write_to_file']:
+                
+                # Create directory if needed
+                file_dir, _ = os.path.split(eac['file'])
+                if not os.path.exists(file_dir):
+                    os.makedirs(file_dir)
+                    
+                # Format data
+                dim1, dim2 = analog_array.shape
+                if dim1 < dim2:
+                    analog_array = analog_array.T
+                    
+                # Write data to a wav file
+                if '.wav' in eac['file']:
+                       
+                    import soundfile as sf
+                    sf.write(eac['file'], analog_array, round(fs), format='WAV')
+                    
+                # Write data to a tsv.gz file 
+                elif eac['file']:
+            
+                    with gzip.open(eac['file'], 'wt') as f:    
+                        for a in range(len(analog_array)): 
+                            f.write('{:1.20f}\t\n'.format(analog_array[a][0]))             
+    
+                    # Create corresponding json file 
+                    ana_descr = {
+                        'SamplingFrequency': fs,
+                        'StartTime': 0,
+                        'Columns': [eac['name']]
+                    }
+                    
+                    json_file = eac['file'].replace('.tsv.gz', '.json')
+                    
+                    with open(json_file, 'w') as file:
+                        json.dump(ana_descr, file, indent=4)
+                        
             # Add as a TimeSeries
-            self._create_timeseries(
-                eac["name"],
-                analog_array.T,
-                fs,
-                description=eac["description"],
-                unit=unit,
-                comments=comments
-            )
+            else:
+            
+                self._create_timeseries(
+                    eac["name"],
+                    analog_array.T,
+                    fs,
+                    description=eac["description"],
+                    unit=unit,
+                    comments=comments
+                )
 
     def _get_tdt_eeg_data(self, eeg_chans=None, return_store_list=False):
         # The default is to look for the EEG stores listed here
@@ -1110,8 +1148,12 @@ class IEEG2NWB:
             freesurfer_subject_directory = op.dirname(op.dirname(op.dirname(labelfile_path)))
 
         # Read correspondence sheet
-        self.read_correspondence_sheet()
-        self.process_correspondence_sheet()
+        if 'labelfile' in params.keys():
+            self.read_correspondence_sheet(correspondence_sheet=params['labelfile'])
+        else:
+            self.read_correspondence_sheet()
+            
+        self.process_correspondence_sheet(update=params['update_elec_table'])
 
         # Create electrode table and all necessary variables
         self.create_electrode_groups()
@@ -1131,9 +1173,10 @@ class IEEG2NWB:
                     ana["store"] = store
 
                 if "externalize" in ana.keys():
-                    write_to_wav = ana.pop("externalize")
-                    ana["write_to_wav"] = write_to_wav
-
+                    
+                    write_to_file = ana.pop("externalize")
+                    ana["write_to_file"] = write_to_file
+                    
                 if "comment" in ana.keys():
                     comments = ana.pop("comment")
                     ana["comments"] = comments
@@ -1241,7 +1284,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     if ana_cname not in analog_prefixes:
                         analog_prefixes.append(ana_cname)
 
-            fields2add = ['name', 'store', 'channels', 'description', 'comments', 'externalize']
+            fields2add = ['name', 'store', 'channels', 'description', 'comments', 'externalize', 'file']
             analist = []
             for a in analog_prefixes:
                 # If name doesn't exist, then it isn't there
@@ -1291,12 +1334,19 @@ def batch_file_process(batch_excel_file,create_path=False):
 
             # Define output Path
             if 'output' not in row_dict.keys():
-                if 'session_id' in df_vars.keys() and 'task' in row_dict.keys():
-                    outputName = '{:s}_{:s}_task-{:s}'.format(df_vars['subject_id_bids'],
-                                                              df_vars['session_id'],
-                                                              row_dict['task'])
+                
+                if 'subject_id_bids' in df_vars.keys():
+                    outputName = df_vars['subject_id_bids']
+                elif'subject' in df_vars.keys():
+                    outputName = df_vars['subject_id']
+                
+                if 'outputName' in locals():
+                    if 'session_id' in row_dict.keys(): 
+                        outputName = outputName + '_ses-{:02d}'.format(int(row_dict['session_id']))
                     if 'acq' in row_dict.keys():
                         outputName = outputName + '_acq-' + row_dict['acq']
+                    if 'task' in row_dict.keys():
+                        outputName = outputName + '_task-' + row_dict['task']
                     if 'run' in row_dict.keys():
                         outputName = '{:s}_run-{:02d}'.format(outputName, 
                                                               int(row_dict['run']))
@@ -1305,7 +1355,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     outputName = outputName + '.nwb'
                     
                 if 'output_path' in df_vars.keys():
-                    outputName = df_vars['output_path'] + '/' + df_vars['session_id'] + '/ieeg/' + outputName
+                    outputName = df_vars['output_path'] + '/' + outputName
                 else:
                     row_dict['output'] = outputName
                     
@@ -1314,14 +1364,21 @@ def batch_file_process(batch_excel_file,create_path=False):
                     
                 row_dict['output'] = outputName
                 
-            # Create output for external wave file (microphone)
-            idx_mic = np.where([ana['name'] == 'mic' for ana in analist])[0]
-            
-            if len(idx_mic) == 1:
-                
-                if row_dict['output'].endswith('_ieeg.nwb'):
-                    row_dict['mic_output'] = row_dict['output'].replace('_ieeg.nwb', '_physio.tsv.gz')
-                
+            # Create output path for external files
+            for ana in analist:
+           
+                if ana['externalize']:
+                    
+                    if 'file' in ana.keys():             
+                        file = ana.pop('file')
+                    else:
+                        file = 'tsv'
+                        
+                    if file == 'tsv': 
+                        ana['file'] = row_dict['output'].replace('_ieeg.nwb', '_physio.tsv.gz')
+                    if file == 'wav':
+                        ana['file'] = row_dict['output'].replace('_ieeg.nwb', '_{:s}.wav'.format(ana['name']))
+
             # add subject level data if necessary
             if 'labelfile' not in row_dict.keys():
                 if 'corr_sheet' in df_vars.keys():
@@ -1345,10 +1402,15 @@ def batch_file_process(batch_excel_file,create_path=False):
                     print('subject ID could not be found. Either the main sheet or the variables sheet of the batch file need to have a field called "age"')
             if 'subject_description' not in row_dict.keys():
                 if 'subject_description' in df_vars.keys():
-                    row_dict['subject_id'] = df_vars['subject_id_bids']
+                    row_dict['subject_description'] = df_vars['subject_description']
                 else:
                     print('subject description could not be found. Either the main sheet or the variables sheet of the batch file should have a field called "subject_description"')
-
+            if 'update_elec_table' not in row_dict.keys():
+                if 'update_elec_table' in df_vars.keys():
+                    row_dict['update_elec_table'] = bool(int(df_vars['update_elec_table']))
+                else:
+                    row_dict['update_elec_table'] = True
+            
             # Add digital analog
             subfields = zip(['analog', 'digital'], [analist, diglist])
             for k,v in subfields:
@@ -1363,10 +1425,10 @@ def batch_file_process(batch_excel_file,create_path=False):
                     row_dict['freesurfer_subject_directory'] = df_vars['freesurfer_subject_directory']
                     
             if 'freesurfer_subject_id' not in row_dict.keys():
-                if 'subject_id_ns' not in df_vars.keys():
+                if 'subject_id' not in df_vars.keys():
                     print('Subject label not defined, freesurfer subject cannot be set!')
                 else:
-                    row_dict['freesurfer_subject_id'] = df_vars['subject_id_ns']
+                    row_dict['freesurfer_subject_id'] = df_vars['subject_id']
                     
             # Create a yml file
             outfile = paramsdir + os.sep + '%s.yml' % blockfile

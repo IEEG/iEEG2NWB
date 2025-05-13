@@ -157,10 +157,6 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
     fsavg_dir = os.path.join(subjects_dir, "fsaverage")
     fsavg_label_dir = os.path.join(fsavg_dir, "label")
     
-    # 
-    lh_fname = os.path.join(subject_label_dir, "lh." + annot_fname + ".annot")
-    rh_fname = os.path.join(subject_label_dir, "rh." + annot_fname + ".annot")
-
     # Check which atlases still need to be made
     parcs_to_make = []
     need_to_copy_fsavg = False

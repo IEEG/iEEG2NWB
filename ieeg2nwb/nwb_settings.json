@@ -55,11 +55,11 @@
                 "type": "float",
                 "required": true
             },
-            "location": {
-                "title": "location",
+            "aparc_aseg_atlas": {
+                "title": "aparc_aseg_atlas",
                 "search": "(?:FS_vol|AparcAseg_Atlas|aparc_aseg)",
                 "description": "the location of channel within the subject e.g. brain region",
-                "default": "unknown",
+                "default": "Unknown",
                 "type": "string",
                 "required": true
             },
@@ -148,7 +148,7 @@
                 "title": "hem",
                 "search": "(?:LvsR|Hem|hem)",
                 "description": "hemisphere of the brain channel is located on",
-                "default": "unknown",
+                "default": "Unknown",
                 "type": "string",
                 "required": false
             },
@@ -156,7 +156,7 @@
                 "title": "desikan_killiany_atlas",
                 "search": "(?:Desikan_Killiany|DK_Atlas)",
                 "description": "Location of channel according to Desikan-Killiany atlas",
-                "default": "unknown",
+                "default": "Unknown",
                 "type": "string",
                 "required": false
             },
@@ -164,7 +164,7 @@
                 "title": "destrieux_atlas",
                 "search": "(?:Destrieux|D_Atlas)",
                 "description": "Location of channel according to Destrieux atlas",
-                "default": "unknown",
+                "default": "Unknown",
                 "type": "string",
                 "required": false
             },
@@ -172,7 +172,7 @@
                 "title": "yeo7_atlas",
                 "search": "(?:Yeo7|Y7_Atlas)",
                 "description": "Location of channel according to Yeo 7-network atlas",
-                "default": "unknown",
+                "default": "Unknown",
                 "type": "string",
                 "required": false
             },
@@ -180,7 +180,15 @@
                 "title": "yeo17_atlas",
                 "search": "(?:Yeo17|Y17_Atlas)",
                 "description": "Location of channel according to Yeo 17-network atlas",
-                "default": "unknown",
+                "default": "Unknown",
+                "type": "string",
+                "required": false
+            },
+            "hcp_atlas": {
+                "title": "hcp_atlas",
+                "search": "(?:HCP)",
+                "description": "Location of channel according to HCP atlas",
+                "default": "Unknown",
                 "type": "string",
                 "required": false
             },

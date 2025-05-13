@@ -1,4 +1,4 @@
-import os
+import os, re, copy, subprocess
 import pandas as pd
 import numpy as np
 import os.path as op
@@ -247,3 +247,171 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
 
 
     return elecTable
+
+
+#%% Update correspondence sheet
+def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False, file_copy=None, n_jobs=-1):
+    
+    #%% Define required columns
+    columns_req = ['Good', 'Spec', 'SOZ'	, 'Spikey', 'Out', 'hem', 'ptd', 
+                   'fsaverage_coords_1', 'fsaverage_coords_2', 'fsaverage_coords_3',
+                   'lepto_coords_1', 'lepto_coords_2', 'lepto_coords_3', 
+                   'aparc_aseg', 'Desikan_Killiany', 'Destrieux', 'Yeo7', 'Yeo17', 'HCP', 
+                   'dist']
+
+    # ielvis datasheet is named consistently, but different from correspondence sheet
+    columns_req_ielvis = ['N/A', 'spec', 'N/A', 'N/A', 'N/A', 'hem', 'ptd', 
+                   'fsaverage_x', 'fsaverage_y', 'fsaverage_z',
+                   'lepto_x', 'lepto_y', 'lepto_z', 
+                   'aparc_aseg', 'dk_atlas', 'd_atlas', 'y7_atlas', 'y17_atlas', 'hcp_atlas', 
+                   'dist_to_surf_mm']
+
+    # Colums that should not be changed, but renamed if necessary
+    columns_rename = ['Label', 'TDT_chan']
+
+    #%% Compute anatomical data that is not yet available
+
+    # Get missing info 
+    ielvis_df = read_ielvis(subject_id, subjects_dir=freesurfer_dir, full=True, n_jobs=n_jobs)
+
+    # Also get coordinates on the inflated brain
+    if np.sum(np.isnan(ielvis_df.inf_x)) == ielvis_df.shape[0]:
+        
+        pial_to_inflated(subject_id, subjects_dir=freesurfer_dir, write_to_file=True, n_jobs=n_jobs)
+        
+        # Reload the dataframe 
+        ielvis_df = read_ielvis(subject_id, subjects_dir=freesurfer_dir, full=True, n_jobs=n_jobs)
+        
+    # Get updated PTD
+    if np.sum(np.isnan(ielvis_df.ptd)) != 0:
+        
+        get_ptd_index(subject_id, subjects_dir=freesurfer_dir, write_to_file=True)
+        
+        # Reload the dataframe 
+        ielvis_df = read_ielvis(subject_id, subjects_dir=freesurfer_dir, full=True, n_jobs=n_jobs)
+      
+    #%% Update the correspondence sheet
+
+    #%% Load the correpondence sheet
+    file_name = ('{:s}/{:s}/elec_recon/'
+                 '{:s}_Electrodes_Natus_TDT_correspondence.xlsx').format(freesurfer_dir, subject_id, subject_id)
+
+    assert os.path.exists(file_name), ('Make sure the correspondence sheet exists and is named '
+                                       '{:s}_Electrodes_Natus_TDT_correspondence.xlsx').format(subject_id)
+
+    # Load the correspondence sheet
+    correspondence_sheet = pd.read_excel(file_name)
+
+    #%% Reorder ielvis_df
+    ielvis_df_sort = pd.DataFrame(columns=ielvis_df.columns)
+
+    empty_row = pd.DataFrame([np.hstack((['LR_label', 'X', 'LR'], 
+                                         np.empty(18) * np.nan,
+                                         'Out',
+                                         np.empty(17) * np.nan,
+                                         ['Out'] * 5)).T], 
+                             columns=ielvis_df.columns)
+
+    for i in range(correspondence_sheet.shape[0]):
+        
+        idx = np.where(np.isin(ielvis_df.label, correspondence_sheet.Label[i]))[0]
+
+        if len(idx) == 0:
+            
+            row = copy.copy(empty_row)
+            
+            label_i = correspondence_sheet.Label[i]
+            
+            row.label = label_i
+            row.hem = label_i[0]
+            
+            # For reference channels use 'R' as spec
+            if 'Ref' in label_i:
+                row.spec = 'R'
+                
+            # Otherwise get the spec find all channels from the same electrode
+            else:         
+                idx_elec = [''.join(re.findall(r"\D", label_i)) in l for l in ielvis_df_sort.label]
+                
+                # Then use the spec of the first channel
+                row.spec = ielvis_df_sort[idx_elec].spec.iloc[0]
+                
+            # Add row to the dataframe
+            ielvis_df_sort.loc[i] = row.iloc[0]
+           
+        else:
+            
+            ielvis_df_sort.loc[i] = ielvis_df.iloc[idx[0]]
+
+    if ielvis_df_sort.ptd.dtype == 'O':
+        ielvis_df_sort.ptd = ielvis_df_sort.ptd.astype(float)
+        
+    #%% See what data is already there and add the rest
+    corr_sheet_cols = correspondence_sheet.columns
+
+    # Go through all required columsn
+
+    for j,r in enumerate(columns_req):
+        
+        idx_col = [re.search(r, c, re.IGNORECASE) is not None for c in corr_sheet_cols]
+        col_in_sheet = np.sum(idx_col) == 1
+        
+        r_ielvis = columns_req_ielvis[j]
+        col_in_ielvis = np.sum([re.search(r_ielvis, c, re.IGNORECASE) is not None 
+                                for c in columns_req_ielvis]) == 1
+        
+        assert col_in_sheet or col_in_ielvis, ('Column {:s} is not in the correspondence'
+                                               ' sheet for {:s} and cannot be created'
+                                               ' with ielvis, please add!').format(r, subject_id)
+        
+        if not col_in_sheet and col_in_ielvis:
+            
+            correspondence_sheet[r] = ielvis_df_sort[r_ielvis]
+            col_name = r_ielvis
+            
+        else:
+            col_name = corr_sheet_cols[idx_col][0]
+         
+        # Rename the column to be more consistent
+        correspondence_sheet = correspondence_sheet.rename(columns={col_name: r})
+        
+    #%% Replace columns if there is more data in the ielvis data
+    if np.sum(np.isnan(correspondence_sheet.ptd)) > np.sum(np.isnan(ielvis_df_sort.ptd)):
+        correspondence_sheet.ptd = ielvis_df_sort.ptd
+        
+    #%% Cosmetics on HCP labels
+    correspondence_sheet.loc[[l == '???' for l in correspondence_sheet.HCP], 'HCP'] = 'Unknown'
+
+    #%% Rename some columns
+    for c in columns_rename:
+        
+        idx_col = [np.sum([re.search(pattern, col, re.IGNORECASE) is not None 
+                           for pattern in c.split('_')]) == len(c.split('_')) 
+                   for col in correspondence_sheet.columns]
+        
+        # Handle case when two columns include the pattern
+        if np.sum(idx_col) > 1:
+            
+            col_names = correspondence_sheet.columns[idx_col]
+            col_name = col_names[np.argmin([len(ic) for ic in correspondence_sheet.columns[idx_col]])]
+            idx_col = correspondence_sheet.columns == col_name
+            
+        assert np.sum(idx_col) == 1, '{:s} not found in correspondence sheet, double check!'.format(c)
+        
+        correspondence_sheet = correspondence_sheet.rename(columns={correspondence_sheet.columns[idx_col][0]: c})
+
+    #%% Save the updated correspondence sheet
+    if overwrite_file:
+        file_name_write = file_name   
+    else:
+        file_name_write = file_name.replace('.xlsx', '_updated.xlsx')
+
+    correspondence_sheet.to_excel(file_name_write)
+        
+    #%% Copy the updated correspondence sheet 
+    if file_copy is not None:
+        
+        cmd_cp = ('cp {:s} {:s}').format(file_name_write, file_copy)   
+                                                                        
+        returned_value = subprocess.call(cmd_cp, shell=True)
+        print('Copy file {:s}: {:d}'.format(os.path.split(file_name_write)[-1], returned_value))
