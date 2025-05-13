@@ -16,6 +16,7 @@ import os
 import os.path as op
 import glob
 import re
+import gzip
 from datetime import datetime
 from dateutil.tz import tzlocal
 from datetime import timedelta
@@ -638,21 +639,8 @@ class IEEG2NWB:
         self.nwbfile.add_acquisition(annotations)
 
 
-    def _create_timeseries(self, name, data, fs, description=None, comments=None, unit="volts", write_to_wav=False):
+    def _create_timeseries(self, name, data, fs, description=None, comments=None, unit="volts"):
         """Create the TimeSeries object."""
-        if write_to_wav:
-            if self.output_file:
-                wav_fname = op.splitext(self.output_file)[0] + f"_{name}.wav"
-            else:
-                wav_fname = op.splitext(self.raw_data_file)[0] + f"_{name}.wav"
-
-            import soundfile as sf
-            dim1, dim2 = data.shape
-            if dim1 < dim2:
-                data = data.T
-            print(f"---> Writing {name} to {wav_fname}")
-            sf.write(wav_fname, data, round(fs))
-
 
         if comments is None:
             comments = "no comments"
@@ -741,7 +729,7 @@ class IEEG2NWB:
 
             # Get all stores
             # analog_array = self.raw_data.get_data()[eac["channels"], :]
-            analog_array = self.raw_data.get_data(eac["channels"])
+            analog_array = self.raw_data.get_data(np.array(eac["channels"])-1)
             fs = self.raw_data.info["sfreq"]
 
             if "unit" in eac.keys():
@@ -779,12 +767,12 @@ class IEEG2NWB:
             # Get all stores
             analog_array, fs = get_tdt_data(self.raw_data, eac["store"])
 
-            if "channel" not in eac.keys():
-                eac["channel"] = None
+            if "channels" not in eac.keys():
+                eac["channels"] = None
 
             # Take only the data from the channels that are in the correspondence table
-            if eac["channel"] is not None:
-                analog_array = analog_array[eac["channel"], :]
+            if eac["channels"] is not None:
+                analog_array = analog_array[np.array(eac["channels"])-1, :]
 
             if "unit" in eac.keys():
                 unit = eac["unit"]
@@ -796,15 +784,55 @@ class IEEG2NWB:
             else:
                 comments = None
 
+            # Format data when writing to file
+            if eac['write_to_file']:
+                
+                # Create directory if needed
+                file_dir, _ = os.path.split(eac['file'])
+                if not os.path.exists(file_dir):
+                    os.makedirs(file_dir)
+                    
+                # Format data
+                dim1, dim2 = analog_array.shape
+                if dim1 < dim2:
+                    analog_array = analog_array.T
+                    
+                # Write data to a wav file
+                if '.wav' in eac['file']:
+                       
+                    import soundfile as sf
+                    sf.write(eac['file'], analog_array, round(fs), format='WAV')
+                    
+                # Write data to a tsv.gz file 
+                elif eac['file']:
+            
+                    with gzip.open(eac['file'], 'wt') as f:    
+                        for a in range(len(analog_array)): 
+                            f.write('{:1.20f}\t\n'.format(analog_array[a][0]))             
+    
+                    # Create corresponding json file 
+                    ana_descr = {
+                        'SamplingFrequency': fs,
+                        'StartTime': 0,
+                        'Columns': [eac['name']]
+                    }
+                    
+                    json_file = eac['file'].replace('.tsv.gz', '.json')
+                    
+                    with open(json_file, 'w') as file:
+                        json.dump(ana_descr, file, indent=4)
+                        
             # Add as a TimeSeries
-            self._create_timeseries(
-                eac["name"],
-                analog_array.T,
-                fs,
-                description=eac["description"],
-                unit=unit,
-                comments=comments
-            )
+            else:
+            
+                self._create_timeseries(
+                    eac["name"],
+                    analog_array.T,
+                    fs,
+                    description=eac["description"],
+                    unit=unit,
+                    comments=comments
+                )
 
     def _get_tdt_eeg_data(self, eeg_chans=None, return_store_list=False):
         # The default is to look for the EEG stores listed here
@@ -1068,9 +1096,10 @@ class IEEG2NWB:
                     ana["store"] = store
 
                 if "externalize" in ana.keys():
-                    write_to_wav = ana.pop("externalize")
-                    ana["write_to_wav"] = write_to_wav
-
+                    
+                    write_to_file = ana.pop("externalize")
+                    ana["write_to_file"] = write_to_file
+                    
                 if "comment" in ana.keys():
                     comments = ana.pop("comment")
                     ana["comments"] = comments
@@ -1178,7 +1207,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     if ana_cname not in analog_prefixes:
                         analog_prefixes.append(ana_cname)
 
-            fields2add = ['name', 'store', 'channels', 'description', 'comments', 'externalize']
+            fields2add = ['name', 'store', 'channels', 'description', 'comments', 'externalize', 'file']
             analist = []
             for a in analog_prefixes:
                 # If name doesn't exist, then it isn't there
@@ -1258,14 +1287,21 @@ def batch_file_process(batch_excel_file,create_path=False):
                     
                 row_dict['output'] = outputName
                 
-            # Create output for external wave file (microphone)
-            idx_mic = np.where([ana['name'] == 'mic' for ana in analist])[0]
-            
-            if len(idx_mic) == 1:
-                
-                if row_dict['output'].endswith('_ieeg.nwb'):
-                    row_dict['mic_output'] = row_dict['output'].replace('_ieeg.nwb', '_physio.tsv.gz')
-                
+            # Create output path for external files
+            for ana in analist:
+           
+                if ana['externalize']:
+                    
+                    if 'file' in ana.keys():             
+                        file = ana.pop('file')
+                    else:
+                        file = 'tsv'
+                        
+                    if file == 'tsv': 
+                        ana['file'] = row_dict['output'].replace('_ieeg.nwb', '_physio.tsv.gz')
+                    if file == 'wav':
+                        ana['file'] = row_dict['output'].replace('_ieeg.nwb', '_{:s}.wav'.format(ana['name']))
+
             # add subject level data if necessary
             if 'labelfile' not in row_dict.keys():
                 if 'corr_sheet' in df_vars.keys():
