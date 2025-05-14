@@ -1,4 +1,5 @@
 import os, re, copy, subprocess
+from itertools import compress
 import pandas as pd
 import numpy as np
 import os.path as op
@@ -253,7 +254,7 @@ def read_ielvis(subject, subjects_dir=None, squeeze=False, parcs=False, extra_co
 def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False, file_copy=None, n_jobs=-1):
     
     #%% Define required columns
-    columns_req = ['Good', 'Spec', 'SOZ'	, 'Spikey', 'Out', 'hem', 'ptd', 
+    columns_req = ['Good', 'Spec', 'SOZ'	, 'Spikey', 'Out', ['hem', 'LvsR'], 'ptd', 
                    'fsaverage_coords_1', 'fsaverage_coords_2', 'fsaverage_coords_3',
                    'fsaverage_inf_1', 'fsaverage_inf_2', 'fsaverage_inf_3',
                    'lepto_coords_1', 'lepto_coords_2', 'lepto_coords_3', 
@@ -353,29 +354,32 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
 
     # Go through all required columsn
 
-    for j,r in enumerate(columns_req):
+    for j,col_req in enumerate(columns_req):
+
+        if type(col_req) is str:
+            col_req = [col_req]
         
-        idx_col = [re.search(r, c, re.IGNORECASE) is not None for c in corr_sheet_cols]
-        col_in_sheet = np.sum(idx_col) == 1
+        idx_col = [[re.search(r, c, re.IGNORECASE) is not None for c in corr_sheet_cols] for r in col_req]
+        col_in_sheet = [np.sum(ic) == 1 for ic in idx_col]
         
         r_ielvis = columns_req_ielvis[j]
         col_in_ielvis = np.sum([re.search(r_ielvis, c, re.IGNORECASE) is not None 
                                 for c in columns_req_ielvis]) == 1
         
-        assert col_in_sheet or col_in_ielvis, ('Column {:s} is not in the correspondence'
-                                               ' sheet for {:s} and cannot be created'
-                                               ' with ielvis, please add!').format(r, subject_id)
+        assert np.sum(col_in_sheet) > 0 or col_in_ielvis, ('Column {:s} is not in the correspondence'
+                                                           ' sheet for {:s} and cannot be created'
+                                                           ' with ielvis, please add!').format(col_req[0], subject_id)
         
-        if not col_in_sheet and col_in_ielvis:
+        if not np.sum(col_in_sheet) > 0 and col_in_ielvis:
             
-            correspondence_sheet[r] = ielvis_df_sort[r_ielvis]
+            correspondence_sheet[col_req[0]] = ielvis_df_sort[r_ielvis]
             col_name = r_ielvis
             
         else:
-            col_name = corr_sheet_cols[idx_col][0]
+            col_name = corr_sheet_cols[list(compress(idx_col, col_in_sheet))[0]][0]
          
         # Rename the column to be more consistent
-        correspondence_sheet = correspondence_sheet.rename(columns={col_name: r})
+        correspondence_sheet = correspondence_sheet.rename(columns={col_name: col_req[0]})
         
     #%% Replace columns if there is more data in the ielvis data
     if np.sum(np.isnan(correspondence_sheet.ptd)) > np.sum(np.isnan(ielvis_df_sort.ptd)):
@@ -402,6 +406,12 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
         
         correspondence_sheet = correspondence_sheet.rename(columns={correspondence_sheet.columns[idx_col][0]: c})
 
+    #%% Remove unnamed columns 
+    unnamed_cols = correspondence_sheet.columns[['Unnamed' in c 
+                                                 for c in correspondence_sheet.columns]]
+    
+    correspondence_sheet = correspondence_sheet.drop(unnamed_cols, axis=1)
+    
     #%% Save the updated correspondence sheet
     if overwrite_file:
         file_name_write = file_name   

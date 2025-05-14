@@ -39,6 +39,7 @@ from pymatreader import read_mat
 import h5py
 from ieeg2nwb.utils import load_nwb_settings
 from ieeg2nwb.fileio.tdt import _get_tdt_store, get_tdt_data, read_tdt_ttls
+from ieeg2nwb.fileio.edf import read_edf_ttls
 from ieeg2nwb.fileio import read_ielvis
 
 # TODO
@@ -572,7 +573,8 @@ class IEEG2NWB:
             self,
             stores,
             name="TTLs",
-            description="TTL pulses emitted at specific events"
+            description="TTL pulses emitted at specific events",
+            thresh=3
     ):
         """Create the digital acquisition.
         ex:
@@ -580,7 +582,11 @@ class IEEG2NWB:
         """
 
         # Get the timestamps and stores they're from
-        event_times = read_tdt_ttls(self.raw_data, stores)
+        if self.raw_data_type == "tdt":
+            event_times = read_tdt_ttls(self.raw_data, stores)
+        elif self.raw_data_type == "edf":   
+            event_times = read_edf_ttls(self.raw_data, stores, thresh)
+            
         event_times_df = pd.DataFrame(event_times)
 
         # Get rid of any timestamps occurring at t=0
@@ -1289,7 +1295,7 @@ def batch_file_process(batch_excel_file,create_path=False):
             # Most important info
             blockfile = os.path.basename(row_dict['block'])
 
-            if 'experimenter' in row_dict.keys(): row_dict['experimenter'] = row_dict['experimenter'].split(',')
+            if 'experimenter' in row_dict.keys(): row_dict['experimenter'] = row_dict['experimenter'].split(';')
 
             # Neurodata
             if 'neurodata' in row_dict.keys():
@@ -1336,7 +1342,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     if dig_cname not in digital_prefixes:
                         digital_prefixes.append(dig_cname)
             
-            fields2add = ['name', 'stores', 'description', 'comments']
+            fields2add = ['name', 'stores', 'description', 'thresh']
             diglist = []
             for d in digital_prefixes:
                 dig_name = d + '_name'
@@ -1461,7 +1467,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     row_dict['freesurfer_subject_id'] = df_vars['subject_id']
                     
             # Create a yml file
-            outfile = paramsdir + os.sep + '%s.yml' % blockfile
+            outfile = paramsdir + os.sep + '%s.yml' % blockfile.replace('.edf', '')
             with open(outfile, 'w') as file:
                 yaml.dump(row_dict, file, sort_keys=False)
 
