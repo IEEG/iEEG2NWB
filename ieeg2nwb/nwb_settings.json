@@ -89,7 +89,7 @@
             },
             "infl_y": {
                 "title": "infl_y",
-                "search": "(?:Lfsaverage_inf_2|fsaverage_inf_y)",
+                "search": "(?:fsaverage_inf_2|fsaverage_inf_y)",
                 "description": "the y coordinate of the channel location in freesurfer average (fsaverage) inflated surface",
                 "default": 999.0,
                 "type": "float",

@@ -127,8 +127,6 @@ class IEEG2NWB:
 
         self.nwbfile = NWBFile(description, str(uuid4()), start_time)
 
-
-
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
         """Create subject object."""
         subject = Subject(
@@ -535,7 +533,7 @@ class IEEG2NWB:
             self.start_time = start_time
 
         if self.nwbfile is None:
-            self.init_nwbfile()
+            self.init_nwbfile(self.session_description)
 
         if create_device:
             self.amplifier = self.create_device(amplifier)
@@ -1114,7 +1112,15 @@ class IEEG2NWB:
 
     def parse_params(self, params):
         """Run the entire converter given params."""
-
+ 
+        # Session description
+        if 'session_description' in params.keys():
+            setattr(self, 'session_description', params['session_description'])
+        elif 'task' in params.keys():
+            setattr(self, 'session_description', params['task'])
+        else:
+            setattr(self, 'session_description', None)
+            
         # Read data
         print('-----> Reading input: %s' % params['block'])
         eeg_chans = params.get('neurodata')
@@ -1132,7 +1138,15 @@ class IEEG2NWB:
         
         if subdict:
             self.create_subject(**subdict)
+            
+        # Metadata
+        meta_fields = ['session_id', 'notes', 'data_collection', 
+                       'experimenter', 'keywords','lab','experiment_description']
         
+        for m in meta_fields:
+            if m in params.keys():
+                setattr(self.nwbfile, m, params[m])   
+    
         # Add freesurfer info
         freesurfer_subject_id = params["subject_id"]
         freesurfer_subject_directory = None
