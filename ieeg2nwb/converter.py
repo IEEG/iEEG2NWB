@@ -1070,7 +1070,7 @@ class IEEG2NWB:
             json.dump(json_dict, f, indent=4)
 
 
-    def write_nwb(self, nwb_file=None):
+    def write_nwb(self, nwb_file=None, write_json=False):
         """Write the NWB file."""
         if nwb_file is None and self.output_file is None:
             raise ValueError("Output file must be provided")
@@ -1108,7 +1108,8 @@ class IEEG2NWB:
             self.raw_data.close()
 
         # Write out the json file
-        self.write_json_sidecar(self.output_file)
+        if write_json:
+            self.write_json_sidecar(self.output_file)
 
     def parse_params(self, params):
         """Run the entire converter given params."""
@@ -1120,6 +1121,12 @@ class IEEG2NWB:
             setattr(self, 'session_description', params['task'])
         else:
             setattr(self, 'session_description', None)
+            
+        # Update lab and institution
+        if 'lab' in params.keys():
+            self._params['lab'] = params['lab']
+        if 'institution' in params.keys():
+            self._params['institution'] = params['institution']
             
         # Read data
         print('-----> Reading input: %s' % params['block'])
@@ -1218,7 +1225,7 @@ class IEEG2NWB:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
-        self.write_nwb(nwbfile_fname)
+        self.write_nwb(nwbfile_fname, params['write_bids_files'])
 
 
 def batch_file_process(batch_excel_file,create_path=False):
@@ -1424,6 +1431,15 @@ def batch_file_process(batch_excel_file,create_path=False):
                     row_dict['update_elec_table'] = bool(int(df_vars['update_elec_table']))
                 else:
                     row_dict['update_elec_table'] = True
+            if 'write_bids_files' not in row_dict.keys():
+                if 'write_bids_files' in df_vars.keys():
+                    row_dict['write_bids_files'] = bool(int(df_vars['write_bids_files']))
+                else:
+                    row_dict['write_bids_files'] = False
+            if 'lab' in df_vars.keys():
+                row_dict['lab'] = df_vars['lab']
+            if 'institution' in df_vars.keys():
+                row_dict['institution'] = df_vars['institution']
             
             # Add digital analog
             subfields = zip(['analog', 'digital'], [analist, diglist])
