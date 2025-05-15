@@ -395,7 +395,6 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
         # Replace anyways if in list
         if col_replace[0]:
             correspondence_sheet[col_req[0]] = ielvis_df_sort[r_ielvis]
-            col_name = r_ielvis
          
         # Rename the column to be more consistent
         correspondence_sheet = correspondence_sheet.rename(columns={col_name: col_req[0]})
