@@ -178,7 +178,7 @@
             },
             "artifact_patient": {
                 "title": "artifact_patient",
-                "search": "(?:artifact_patient|bad*)",
+                "search": "(?:artifact_patient|bad)",
                 "description": "contains poor signal quality in general for this patient",
                 "default": 0,
                 "type": "uint8",

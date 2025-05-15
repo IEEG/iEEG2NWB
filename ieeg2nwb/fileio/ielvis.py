@@ -269,6 +269,13 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
                    'aparc_aseg', 'dk_atlas', 'd_atlas', 'y7_atlas', 'y17_atlas', 'hcp_atlas', 
                    'dist_to_surf_mm']
 
+    # Columns to replace
+    columns_replace = ['fsaverage_coords_1', 'fsaverage_coords_2', 'fsaverage_coords_3',
+                       'fsaverage_inf_1', 'fsaverage_inf_2', 'fsaverage_inf_3',
+                       'lepto_coords_1', 'lepto_coords_2', 'lepto_coords_3', 
+                       'aparc_aseg', 'Desikan_Killiany', 'Destrieux', 'Yeo7', 'Yeo17', 'HCP', 
+                       'dist']
+    
     # Colums that should not be changed, but renamed if necessary
     columns_rename = ['Label', 'TDT_chan']
 
@@ -329,9 +336,13 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
             row.hem = label_i[0]
             
             # For reference channels use 'R' as spec
-            if 'Ref' in label_i:
-                row.spec = 'R'
+            if re.search('ref', label_i, re.IGNORECASE):
+                row.spec = 'ref'
                 
+            # For reference channels use 'R' as spec
+            elif re.search('emg', label_i, re.IGNORECASE):
+                row.spec = 'emg'
+                      
             # Otherwise get the spec find all channels from the same electrode
             else:         
                 idx_elec = [''.join(re.findall(r"\D", label_i)) in l for l in ielvis_df_sort.label]
@@ -366,6 +377,9 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
         col_in_ielvis = np.sum([re.search(r_ielvis, c, re.IGNORECASE) is not None 
                                 for c in columns_req_ielvis]) == 1
         
+        idx_rep = [[re.search(r, c, re.IGNORECASE) is not None for c in columns_replace] for r in col_req]
+        col_replace = [np.sum(ic) == 1 for ic in idx_rep]
+        
         assert np.sum(col_in_sheet) > 0 or col_in_ielvis, ('Column {:s} is not in the correspondence'
                                                            ' sheet for {:s} and cannot be created'
                                                            ' with ielvis, please add!').format(col_req[0], subject_id)
@@ -377,6 +391,11 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
             
         else:
             col_name = corr_sheet_cols[list(compress(idx_col, col_in_sheet))[0]][0]
+            
+        # Replace anyways if in list
+        if col_replace[0]:
+            correspondence_sheet[col_req[0]] = ielvis_df_sort[r_ielvis]
+            col_name = r_ielvis
          
         # Rename the column to be more consistent
         correspondence_sheet = correspondence_sheet.rename(columns={col_name: col_req[0]})
@@ -388,6 +407,17 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
     #%% Cosmetics on HCP labels
     correspondence_sheet.loc[[l == '???' for l in correspondence_sheet.HCP], 'HCP'] = 'Unknown'
 
+    #%% Cosmetics on channel labels
+    idx_rename = ['Ria' in l for l in correspondence_sheet.Label]
+    correspondence_sheet.loc[idx_rename, 'Label'] = (
+        [ll.replace('Ria', 'RIa') 
+         for ll in correspondence_sheet.Label[idx_rename]])
+    
+    idx_rename = ['RFL' in l for l in correspondence_sheet.Label]
+    correspondence_sheet.loc[idx_rename, 'Label'] = (
+        [ll.replace('RFL', 'RFl') 
+         for ll in correspondence_sheet.Label[idx_rename]])
+    
     #%% Rename some columns
     for c in columns_rename:
         
