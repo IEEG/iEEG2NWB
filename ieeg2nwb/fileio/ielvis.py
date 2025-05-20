@@ -407,6 +407,7 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
     correspondence_sheet.loc[[l == '???' for l in correspondence_sheet.HCP], 'HCP'] = 'Unknown'
 
     #%% Cosmetics on channel labels
+    # Necassary when elec_recon NSXXX.electrodeNames and correspondence sheet don't match
     idx_rename = ['Ria' in l for l in correspondence_sheet.Label]
     correspondence_sheet.loc[idx_rename, 'Label'] = (
         [ll.replace('Ria', 'RIa') 
@@ -415,6 +416,11 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
     idx_rename = ['RFL' in l for l in correspondence_sheet.Label]
     correspondence_sheet.loc[idx_rename, 'Label'] = (
         [ll.replace('RFL', 'RFl') 
+         for ll in correspondence_sheet.Label[idx_rename]])
+    
+    idx_rename = ['Lia' in l for l in correspondence_sheet.Label]
+    correspondence_sheet.loc[idx_rename, 'Label'] = (
+        [ll.replace('Lia', 'LIa') 
          for ll in correspondence_sheet.Label[idx_rename]])
     
     #%% Rename some columns
