@@ -331,6 +331,7 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
             row = copy.copy(empty_row)
             
             label_i = correspondence_sheet.Label[i]
+            print(label_i)
             
             row.label = label_i
             row.hem = label_i[0]
@@ -339,9 +340,16 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
             if re.search('ref', label_i, re.IGNORECASE):
                 row.spec = 'ref'
                 
-            # For reference channels use 'R' as spec
+            # For emg or ekg channels use 'emg' as spec
             elif re.search('emg', label_i, re.IGNORECASE):
                 row.spec = 'emg'
+                
+            elif re.search('ekg', label_i, re.IGNORECASE):
+                row.spec = 'emg'
+               
+            # scalp EEG channels
+            elif re.search('eeg', label_i, re.IGNORECASE):
+                row.spec = 'eeg'
                       
             # Otherwise get the spec find all channels from the same electrode
             else:         

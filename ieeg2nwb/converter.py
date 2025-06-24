@@ -469,12 +469,15 @@ class IEEG2NWB:
         table_regions = {}
 
         intracranial_specs = self._params["intracranial_specs"]
+        ekg_specs = ['ekg']
 
         df = self.nwbfile.electrodes.to_dataframe()
-        spec_indices = {'ieeg': []}
+        spec_indices = {'ieeg': [], 'ekg': []}
         for idx, row in df.iterrows():
             if row.spec.lower() in intracranial_specs:
                 spec_indices['ieeg'].append(idx)
+            elif row.spec.lower() in ekg_specs:
+                spec_indices['ekg'].append(idx)
             else:
                 if row.spec.lower() not in spec_indices:
                     spec_indices[row.spec.lower()] = []
