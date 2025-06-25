@@ -22,6 +22,7 @@
                 "replace": {
                     "depth": "seeg",
                     "hd_depth": "seeg",
+                    "hddepth": "seeg",
                     "seeg": "seeg",
                     "hseeg": "seeg",
                     "strip": "ecog",

@@ -485,6 +485,8 @@ class IEEG2NWB:
                 spec_indices[row.spec.lower()].append(idx)
 
         for spec, chans in spec_indices.items():
+            if len(chans) == 0:
+                continue
             table_regions[spec] = self.nwbfile.create_electrode_table_region(
                 region=chans,
                 description=f"electrodes recording {spec} data",
