@@ -324,9 +324,21 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
 
     for i in range(correspondence_sheet.shape[0]):
         
+        print(i)
+        
         idx = np.where(np.isin(ielvis_df.label, correspondence_sheet.Label[i]))[0]
 
-        if len(idx) == 0:
+        if correspondence_sheet.Label[i] == '[]':
+            
+            row = copy.copy(empty_row)
+            
+            row.label = '[]'
+            row.hem = '[]'
+            row.spec = '[]'
+            
+            ielvis_df_sort.loc[i] = row.iloc[0]
+            
+        elif len(idx) == 0:
             
             row = copy.copy(empty_row)
             
@@ -360,7 +372,7 @@ def update_correspondence_sheet(subject_id, freesurfer_dir, overwrite_file=False
                 
             # Add row to the dataframe
             ielvis_df_sort.loc[i] = row.iloc[0]
-           
+              
         else:
             
             ielvis_df_sort.loc[i] = ielvis_df.iloc[idx[0]]

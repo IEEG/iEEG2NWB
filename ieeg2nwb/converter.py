@@ -508,7 +508,8 @@ class IEEG2NWB:
             self.raw_data_type = 'edf'
             self.raw_data = read_raw_edf(raw_data_files, preload=True)
             for annot in self.raw_data.annotations:
-                self.annotations.append((annot['onset'], annot['description']))
+                self.annotations["timestamps"].append(annot['onset'])
+                self.annotations["notes"].append(annot['description'])
             amplifier = "xltek"
             start_time = self.raw_data.info["meas_date"]
             self.n_chans = len(self.raw_data.ch_names)
@@ -635,14 +636,14 @@ class IEEG2NWB:
             return
 
         # Filter the annotations first
-        passed_annotations = {"timestamp": [], "description": []}
+        passed_annotations = {"timestamps": [], "description": []}
         annot_filter = '(?:% s)' % '|'.join(self._params["annotations_to_ignore"])
-        for annot in self.annotations:
-            if not re.search(annot_filter, annot[1]):
-                passed_annotations["timestamp"].append(annot[0])
-                passed_annotations["description"].append(annot[1])
+        for n, note in enumerate(self.annotations['notes']):
+            if not re.search(annot_filter, note):
+                passed_annotations["timestamps"].append(self.annotations['timestamps'][n])
+                passed_annotations["description"].append(self.annotations['notes'][n])
 
-        if len(passed_annotations["timestamp"]) == 0:
+        if len(passed_annotations["timestamps"]) == 0:
             print("---> No annotations valid to add")
             return
 
