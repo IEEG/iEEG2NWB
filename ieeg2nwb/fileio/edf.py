@@ -39,14 +39,14 @@ def read_edf_ttls(raw_data, dig_stores, std_thresh):
 
         event_times_store[dc] = pd.DataFrame({'time': s_time, 'stores': s_name})
         
-        # # For debugging
-        # event_vec = np.zeros(raw_data.times.shape)
-        # event_vec[idx_onset] = 1
+        # For debugging
+        event_vec = np.zeros(raw_data.times.shape)
+        event_vec[idx_onset] = 1
         
-        # import matplotlib.pyplot as plt
-        # # plt.figure()
-        # plt.plot(raw_data.times, dig_data.T)
-        # plt.plot(raw_data.times, event_vec)
+        import matplotlib.pyplot as plt
+        # plt.figure()
+        plt.plot(raw_data.times, dig_data.T)
+        plt.plot(raw_data.times, event_vec)
         # plt.close()
         
     # Loop through all stores given and combine
@@ -86,6 +86,9 @@ def read_edf_ttls(raw_data, dig_stores, std_thresh):
         elif i_idx > i_pre:
             store_corr[j] = '{:s}/{:s}'.format(event_times_df.stores.iloc[idx_pre_num[j]], 
                                                event_times_df.stores.iloc[idx_num[j]])
+            
+        elif i_idx == i_pre:
+            store_corr[j] = event_times_df.stores.iloc[idx_num[j]]
             
     event_times_df.loc[idx_pre, 'stores'] = store_corr
     event_times_df = event_times_df.drop(idx_num)

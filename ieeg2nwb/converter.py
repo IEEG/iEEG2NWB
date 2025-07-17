@@ -10,6 +10,7 @@
 # April 2025
 
 # Imports
+from itertools import compress
 import numpy as np
 import pandas as pd
 import os
@@ -41,6 +42,7 @@ from ieeg2nwb.utils import load_nwb_settings
 from ieeg2nwb.fileio.tdt import _get_tdt_store, get_tdt_data, read_tdt_ttls
 from ieeg2nwb.fileio.edf import read_edf_ttls
 from ieeg2nwb.fileio import read_ielvis
+from mne.io import read_raw_edf
 
 # TODO
 #   - "make BIDS" option to create json sidecars for BIDS
@@ -504,7 +506,7 @@ class IEEG2NWB:
         
         # Check what type of file it is
         if raw_data_files.endswith('.edf'):
-            from mne.io import read_raw_edf
+            
             self.raw_data_type = 'edf'
             self.raw_data = read_raw_edf(raw_data_files, preload=True)
             for annot in self.raw_data.annotations:
@@ -744,12 +746,17 @@ class IEEG2NWB:
             )
 
     def _edf_create_analog_acquisition(self, analog_stores):
+        
         """For EDF data create extra analog acquisitions."""
         for eac in analog_stores:
 
             # Get all stores
-            # analog_array = self.raw_data.get_data()[eac["channels"], :]
-            analog_array = self.raw_data.get_data(np.array(eac["channels"])-1)
+            raw_data = read_raw_edf(self.raw_data_file)
+            idx_store = [eac['store'] in ch for ch in raw_data.ch_names]
+            
+            analog_array = raw_data.get_data(list(compress(raw_data.ch_names, idx_store)))
+            analog_array = analog_array[np.array(eac['channels'])-1, :]
+            
             fs = self.raw_data.info["sfreq"]
 
             if "unit" in eac.keys():

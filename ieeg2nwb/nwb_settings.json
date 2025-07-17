@@ -23,6 +23,7 @@
                     "depth": "seeg",
                     "hd_depth": "seeg",
                     "hddepth": "seeg",
+                    "HD_depth": "seeg",
                     "seeg": "seeg",
                     "hseeg": "seeg",
                     "strip": "ecog",
