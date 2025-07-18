@@ -724,7 +724,7 @@ class IEEG2NWB:
         eeg_array = self.raw_data.get_data()
         fs = self.raw_data.info["sfreq"]
 
-        eeg_array = eeg_array[self.channel_labels["channel"], :]
+        eeg_array = eeg_array[self.channel_labels["channel"]-1, :]
 
         # Create the ElectricalSeries object for each table region
         for acq_name,region in self.electable_regions.items():
@@ -748,10 +748,11 @@ class IEEG2NWB:
     def _edf_create_analog_acquisition(self, analog_stores):
         
         """For EDF data create extra analog acquisitions."""
+        raw_data = read_raw_edf(self.raw_data_file)
+        
         for eac in analog_stores:
 
-            # Get all stores
-            raw_data = read_raw_edf(self.raw_data_file)
+            # Get all stores 
             idx_store = [eac['store'] in ch for ch in raw_data.ch_names]
             
             analog_array = raw_data.get_data(list(compress(raw_data.ch_names, idx_store)))
