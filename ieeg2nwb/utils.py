@@ -64,6 +64,14 @@ def iter_by_chan_edf(edf_obj, chunks, chanindices):
 
 # Import the json NWB file
 def load_nwb_settings():
+    """
+    Load NWB settings from the nwb_settings.json file in the package directory.
+
+    Returns
+    -------
+    dict
+        Dictionary containing NWB settings loaded from JSON.
+    """
     # pdir = os.path.dirname(
     #     os.path.dirname(
     #         os.path.dirname(
@@ -98,45 +106,30 @@ def compress_data(data):
     )
 
 def inspectNwb(nwbfile) -> dict:
-    r"""
-      Inspect and return all instances of a TimeSeries class and subclass contained in the file.
+    """
+    Inspect and return all instances of a TimeSeries class and subclass contained in the NWB file.
 
-      Parameters
-      ----------
-      nwbfile : NWBFile
-          An NWBFile object. Created after opening a .nwb file using pynwb.
+    Parameters
+    ----------
+    nwbfile : pynwb.NWBFile
+        An NWBFile object. Created after opening a .nwb file using pynwb.
 
-      Returns
-      -------
-      dict
-          Series of key-value pairs with useful information about containers within the NWBFile:
-              - timeseries: pandas.DataFrame containing information on all TimeSeries classes and subclasses contained in the file including:
-                  - Name of container
-                  - Class
-                  - Description
-                  - Sampling rate (if timestamps used instead then the word "timestamps" will be in place)
-                  - Size and dimensions of data
-                  - Comments
-                  - Object ID (to easily load the TimeSeries after)
-              - devices: pandas.DataFrame of Device object.
-              - subject: dictionary of subject information.
-              - elecs: pandas.DataFrame of ElectrodeTable object (if available).
+    Returns
+    -------
+    dict
+        Dictionary with key-value pairs containing information about containers within the NWBFile:
+        - 'timeseries': pandas.DataFrame with TimeSeries info
+        - 'devices': pandas.DataFrame with Device info
+        - 'subject': dict with subject info
+        - 'elecs': pandas.DataFrame with ElectrodeTable info (if available)
 
-      Examples
-      --------
-      Run the function to see all instances of a TimeSeries in the file:
-
-      >>> from pynwb import NWBHDF5IO
-      >>> io = NWBHDF5IO('myfile.nwb', mode='r', load_namespaces=True)
-      >>> nwbfile = io.read()
-      >>> nwbinfo = inspectNwb(nwbfile)
-
-      Load a specific TimeSeries named "ieeg":
-
-      >>> ts_df = nwbinfo['timeseries']
-      >>> ieeg_id = ts_df.loc[ts_df['name'] == 'ieeg', 'id'].values[0]
-      >>> ieeg = nwbfile.objects.get(ieeg_id)
-      """
+    Examples
+    --------
+    >>> from pynwb import NWBHDF5IO
+    >>> io = NWBHDF5IO('myfile.nwb', mode='r', load_namespaces=True)
+    >>> nwbfile = io.read()
+    >>> nwbinfo = inspectNwb(nwbfile)
+    """
 
     from pynwb import NWBFile
     from pynwb.base import TimeSeries
@@ -203,11 +196,32 @@ def _get_data_directory():
     return op.join(op.dirname(__file__), 'data')
 
 def read_aseg_csv():
+    """
+    Read the aseg.csv file from the package data directory as a pandas DataFrame.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the contents of aseg.csv.
+    """
     import pandas as pd
     aseg_csv = op.join(_get_data_directory(), 'aseg.csv')
     return pd.read_csv(aseg_csv)
 
 def copy_fsaverage_data(target_fsaverage):
+    """
+    Copy the fsaverage directory from the package data to a target location, updating only changed or missing files.
+
+    Parameters
+    ----------
+    target_fsaverage : str
+        Path to the target fsaverage directory where files will be copied.
+
+    Returns
+    -------
+    str
+        Path to the fsaverage directory in the target location.
+    """
     
     my_fsaverage = op.join(_get_data_directory(), 'fsaverage')
     # Walk through the source directory
@@ -248,13 +262,13 @@ def timenow() -> str:
     return formatted_datetime
 
 def get_atlases():
-    """Load atlas definitions from JSON file.
-    
+    """
+    Load atlas definitions from the atlases.json file in the package data directory.
+
     Returns
     -------
     dict
-        Dictionary containing atlas definitions with keys for each atlas type
-        (dk, d, hcp, y7, y17) and their corresponding properties.
+        Dictionary containing atlas definitions with keys for each atlas type (dk, d, hcp, y7, y17) and their properties.
     """
     atlas_file = files('ieeg2nwb.data.atlases') / 'atlases.json'
     with open(atlas_file) as f:

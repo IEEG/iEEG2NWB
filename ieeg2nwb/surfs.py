@@ -38,7 +38,7 @@ def find_nearest_vertex(subject, subjects_dir=None, surf="pial", coords=None, he
 
     Returns
     -------
-    df : pandas DataFrame
+    pandas.DataFrame
         A DataFrame containing the following columns:
         - 'label': The label associated with each coordinate.
         - 'distance': The distance between each coordinate and its nearest vertex.
@@ -136,6 +136,10 @@ def create_indiv_mapping(subject, subjects_dir=None, parc=None, n_jobs=-1):
         (ex: to create lh.HCP-MMP1.annot and rh.HCP-MMP1.annot parc="HCP-MMP1"), can work for customm parcellations
     n_jobs : int
         Number of parallels jobs, default is -1
+
+    Returns
+    -------
+    None
     """
 
     atlases = get_atlases()

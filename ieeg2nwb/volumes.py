@@ -5,14 +5,22 @@ from mne import get_config
 
 def annot_to_volume(subject, annot_name, subjects_dir=None):
     """
-    Convert FreeSurfer annotation files for both hemispheres to a volumetric file (.mgz or .nii.gz), 
+    Convert FreeSurfer annotation files for both hemispheres to a volumetric file (.mgz or .nii.gz),
     ensuring all gray matter voxels on the cortical ribbon are labeled appropriately.
-    
-    Parameters:
-    subjects_dir (str): Path to FreeSurfer subjects directory.
-    subject (str): Subject name.
-    annot_name (str): Name of the annotation file (e.g., 'aparc') without extension.
-    output_file (str): Output volumetric file path (.mgz or .nii.gz).
+
+    Parameters
+    ----------
+    subject : str
+        Subject name.
+    annot_name : str
+        Name of the annotation file (e.g., 'aparc') without extension.
+    subjects_dir : str, optional
+        Path to FreeSurfer subjects directory. If None, uses the MNE config SUBJECTS_DIR.
+
+    Returns
+    -------
+    None
+        The function saves the output file to disk and prints the output path.
     """
 
     if subjects_dir is None:

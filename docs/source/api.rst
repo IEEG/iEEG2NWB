@@ -4,40 +4,33 @@
 API Documentation
 =================
 
-This is the API reference for the neurodsp module.
+This is the API reference for the IEEG2NWB package.
 
 Table of Contents
 =================
 
 .. contents::
     :local:
-    :depth: 1
-
-
-Create NWB Files
----------
-Coming soon!
-
+    :depth: 2
 
 Channels
----------
-
-Functions for channels
+--------
 
 .. currentmodule:: ieeg2nwb.channels
+
 .. autosummary::
     :toctree: generated/
-    pial_to_inflated
+
     elec_to_parc
     sub_to_fsaverage
-
+    pial_to_inflated
+    get_ptd_index
 
 FileIO
----------
-
-Functions and utilities for reading and writing data
+------
 
 .. currentmodule:: ieeg2nwb.fileio
+
 .. autosummary::
     :toctree: generated/
 
@@ -47,44 +40,47 @@ Functions and utilities for reading and writing data
     read_tdt_ttls
     read_xfm
 
-
-Proximal Tissue Density
----------
-
-Function for working with PTD
-
-.. currentmodule:: ieeg2nwb.ptd
-.. autosummary::
-    :toctree: generated/
-
-    get_ptd_index
-
-
 Surfaces
----------
-
-Functions and utilities for working with surfaces
+--------
 
 .. currentmodule:: ieeg2nwb.surfs
+
 .. autosummary::
     :toctree: generated/
 
     find_nearest_vertex
     create_indiv_mapping
 
-
 Utils
----------
-
-Extra functions that are useful
+-----
 
 .. currentmodule:: ieeg2nwb.utils
+
 .. autosummary::
     :toctree: generated/
 
-    compress_data
+    load_nwb_settings
+    inspectNwb
     read_aseg_csv
     copy_fsaverage_data
-    load_nwb_settings
+    get_atlases
 
+Volumes
+-------
 
+.. currentmodule:: ieeg2nwb.volumes
+
+.. autosummary::
+    :toctree: generated/
+
+    annot_to_volume
+
+Converter
+---------
+
+.. currentmodule:: ieeg2nwb.converter
+
+.. autosummary::
+    :toctree: generated/
+
+    IEEG2NWB

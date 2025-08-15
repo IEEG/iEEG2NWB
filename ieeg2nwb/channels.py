@@ -54,7 +54,7 @@ def elec_to_parc(
 
     Returns
     -------
-    parcellation_results : dict
+    dict
         A dictionary containing the parcellation results for each electrode. Keys include electrode names and corresponding parcellation labels.
 
     Notes
@@ -406,7 +406,7 @@ def pial_to_inflated(subject: str, subjects_dir: str = None, coords: np.array = 
 
     Returns
     -------
-    coords : numpy array
+    numpy.ndarray
         Inflated coordinates.
 
     Notes

@@ -1,15 +1,8 @@
 :orphan:
 
-.. _examples:
-
-Examples
-========
-
-Example analyses and applications using NeuroDSP.
-
-.. contents:: Contents
-   :local:
-   :depth: 3
+Example Gallery
+==================
+The following are examples of how to use the iEEG2NWB package.
 
 
 
@@ -19,6 +12,23 @@ Example analyses and applications using NeuroDSP.
 
 .. thumbnail-parent-div-open
 
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This example demonstrates basic usage of the iEEG2NWB package.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_example1_thumb.png
+    :alt:
+
+  :ref:`sphx_glr_auto_examples_example1.py`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Example 1</div>
+    </div>
+
+
 .. thumbnail-parent-div-close
 
 .. raw:: html
@@ -26,13 +36,11 @@ Example analyses and applications using NeuroDSP.
     </div>
 
 
-.. only:: html
+.. toctree::
+   :hidden:
 
-  .. container:: sphx-glr-footer sphx-glr-footer-gallery
+   /auto_examples/example1
 
-    .. container:: sphx-glr-download sphx-glr-download-python
-
-      :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
 
 
 .. only:: html

@@ -29,7 +29,7 @@ from pynwb.base import TimeSeries
 from pynwb.ecephys import ElectricalSeries
 from pynwb.file import ElectrodeTable, Subject
 from pynwb.epoch import TimeIntervals
-from ndx_events import TTLs
+# from ndx_events import TTLs  # Temporarily commented out due to import error
 import json
 import yaml
 import argparse
@@ -58,7 +58,7 @@ from mne.io import read_raw_edf
 class IEEG2NWB:
 
 
-    def __init__(self, description=None):
+    def __init__(self, session_description=None):
 
         self._params = load_nwb_settings()
 
@@ -69,7 +69,7 @@ class IEEG2NWB:
         # Start date and time
         self.start_time = None
         # Session description
-        self.description = description if description is not None else self._params["session_description"]
+        self.session_description = session_description if session_description is not None else self._params["session_description"]
         # Device object for NWB (the amplifier used)
         self.amplifier = None
         # Events table
@@ -113,12 +113,12 @@ class IEEG2NWB:
         self.freesurfer_subject_id = None
 
 
-    def init_nwbfile(self, description=None, start_time=None):
+    def init_nwbfile(self, session_description=None, start_time=None):
         from pynwb import NWBFile
         from uuid import uuid4
 
-        if description is None:
-            description = self.description
+        if session_description is None:
+            session_description = self.session_description
 
         if start_time is None and self.start_time is None:
             start_time = datetime.strptime(self._params["start_time"], "%Y-%m-%d %H:%M:%S").astimezone()
@@ -128,7 +128,7 @@ class IEEG2NWB:
         else:
             raise ValueError("Must provide a start time")
 
-        self.nwbfile = NWBFile(description, str(uuid4()), start_time)
+        self.nwbfile = NWBFile(session_description, str(uuid4()), start_time)
 
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
         """Create subject object."""
