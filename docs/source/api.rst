@@ -13,74 +13,38 @@ Table of Contents
     :local:
     :depth: 2
 
-Channels
---------
+API Documentation
+================
 
-.. currentmodule:: ieeg2nwb.channels
+.. toctree::
+   :maxdepth: 2
 
-.. autosummary::
-    :toctree: generated/
+.. automodule:: ieeg2nwb.converter
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-    elec_to_parc
-    sub_to_fsaverage
-    pial_to_inflated
-    get_ptd_index
+.. automodule:: ieeg2nwb.channels
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-FileIO
-------
+.. automodule:: ieeg2nwb.fileio
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. currentmodule:: ieeg2nwb.fileio
+.. automodule:: ieeg2nwb.surfs
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. autosummary::
-    :toctree: generated/
+.. automodule:: ieeg2nwb.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-    read_ielvis
-    _get_tdt_store
-    get_tdt_data
-    read_tdt_ttls
-    read_xfm
-
-Surfaces
---------
-
-.. currentmodule:: ieeg2nwb.surfs
-
-.. autosummary::
-    :toctree: generated/
-
-    find_nearest_vertex
-    create_indiv_mapping
-
-Utils
------
-
-.. currentmodule:: ieeg2nwb.utils
-
-.. autosummary::
-    :toctree: generated/
-
-    load_nwb_settings
-    inspectNwb
-    read_aseg_csv
-    copy_fsaverage_data
-    get_atlases
-
-Volumes
--------
-
-.. currentmodule:: ieeg2nwb.volumes
-
-.. autosummary::
-    :toctree: generated/
-
-    annot_to_volume
-
-Converter
----------
-
-.. currentmodule:: ieeg2nwb.converter
-
-.. autosummary::
-    :toctree: generated/
-
-    IEEG2NWB
+.. automodule:: ieeg2nwb.volumes
+   :members:
+   :undoc-members:
+   :show-inheritance:

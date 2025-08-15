@@ -54,3 +54,13 @@ autodoc_mock_imports = ['ndx_events', 'colorama']
 
 # -- Autosummary options ---------------------------------------------------
 autosummary_generate = True
+autosummary_imported_members = False
+
+# Additional autosummary configuration
+autosummary_context = {
+    'show_module_info': False,
+    'show_inheritance': False,
+}
+
+# Ensure autosummary generates individual files
+autosummary_generate_overwrite = True
