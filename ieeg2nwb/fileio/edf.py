@@ -44,7 +44,7 @@ def read_edf_ttls(raw_data, dig_stores, std_thresh):
         event_vec[idx_onset] = 1
         
         import matplotlib.pyplot as plt
-        # plt.figure()
+        plt.figure()
         plt.plot(raw_data.times, dig_data.T)
         plt.plot(raw_data.times, event_vec)
         # plt.close()

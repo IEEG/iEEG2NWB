@@ -57,10 +57,10 @@
                 "type": "float",
                 "required": true
             },
-            "aparc_aseg_atlas": {
-                "title": "aparc_aseg_atlas",
+            "location": {
+                "title": "location",
                 "search": "(?:FS_vol|AparcAseg_Atlas|aparc_aseg)",
-                "description": "the location of channel within the subject e.g. brain region",
+                "description": "the location of channel in the aparc aseg atlas",
                 "default": "Unknown",
                 "type": "string",
                 "required": true

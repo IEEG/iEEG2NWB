@@ -1382,15 +1382,10 @@ def batch_file_process(batch_excel_file,create_path=False):
                     outputName = df_vars['subject_id']
                 
                 if 'outputName' in locals():
-                    if 'session_id' in row_dict.keys(): 
-                        outputName = outputName + '_ses-{:02d}'.format(int(row_dict['session_id']))
-                    if 'acq' in row_dict.keys():
-                        outputName = outputName + '_acq-' + row_dict['acq']
                     if 'task' in row_dict.keys():
-                        outputName = outputName + '_task-' + row_dict['task']
+                        outputName = outputName + '_ses-' + row_dict['task']
                     if 'run' in row_dict.keys():
-                        outputName = '{:s}_run-{:02d}'.format(outputName, 
-                                                              int(row_dict['run']))
+                        outputName = '{:s}{:02d}'.format(outputName, int(row_dict['run']))
                 else:
                     outputName, _ = os.path.splitext(blockfile)
                     outputName = outputName + '.nwb'
@@ -1401,7 +1396,7 @@ def batch_file_process(batch_excel_file,create_path=False):
                     row_dict['output'] = outputName
                     
                 if not outputName.endswith('_ieeg.nwb'):
-                    outputName += '_ieeg.nwb'
+                    outputName += '_behavior+ecephys.nwb'
                     
                 row_dict['output'] = outputName
                 
