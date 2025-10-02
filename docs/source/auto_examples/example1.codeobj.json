@@ -1,0 +1,227 @@
+{
+ "QApplication": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "PyQt5.QtWidgets",
+   "module_short": "PyQt5.QtWidgets",
+   "name": "QApplication"
+  }
+ ],
+ "QApplication.instance": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "PyQt5.QtWidgets.QApplication",
+   "module_short": "PyQt5.QtWidgets.QApplication",
+   "name": "instance"
+  }
+ ],
+ "QFileDialog": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "PyQt5.QtWidgets",
+   "module_short": "PyQt5.QtWidgets",
+   "name": "QFileDialog"
+  }
+ ],
+ "QFileDialog.ExistingFile": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "PyQt5.QtWidgets.QFileDialog",
+   "module_short": "PyQt5.QtWidgets.QFileDialog",
+   "name": "ExistingFile"
+  }
+ ],
+ "_select_excel_file": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "corr_sheet": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pandas.core.frame",
+   "module_short": "pandas.core.frame",
+   "name": "DataFrame"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pandas.core",
+   "module_short": "pandas.core",
+   "name": "DataFrame"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pandas",
+   "module_short": "pandas",
+   "name": "DataFrame"
+  }
+ ],
+ "elec_recon_dir": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ],
+ "fname": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ],
+ "freesufer_subject_directory": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ],
+ "glob.glob": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "glob",
+   "module_short": "glob",
+   "name": "glob"
+  }
+ ],
+ "load_nwb_settings": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ieeg2nwb.utils",
+   "module_short": "ieeg2nwb",
+   "name": "load_nwb_settings"
+  }
+ ],
+ "op.isfile": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os.path",
+   "module_short": "os.path",
+   "name": "isfile"
+  }
+ ],
+ "op.join": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os.path",
+   "module_short": "os.path",
+   "name": "join"
+  }
+ ],
+ "os.remove": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "os",
+   "module_short": "os",
+   "name": "remove"
+  }
+ ],
+ "pd.read_excel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "pandas",
+   "module_short": "pandas",
+   "name": "read_excel"
+  }
+ ],
+ "read_ielvis": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ieeg2nwb.fileio.ielvis",
+   "module_short": "ieeg2nwb",
+   "name": "read_ielvis"
+  }
+ ],
+ "settings": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "dict"
+  }
+ ],
+ "subject_id": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "str"
+  }
+ ]
+}

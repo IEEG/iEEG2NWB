@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import os
 import re
-import fileio.tdt as tdt
+from ieeg2nwb.fileio import tdt
 import uuid
 from mne.io import read_raw_edf
 from datetime import datetime

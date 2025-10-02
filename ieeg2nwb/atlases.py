@@ -1,7 +1,8 @@
-from ieeg2nwb.utils import get_atlases
+from .utils import get_atlases
 
-# Load atlas definitions
-ATLASES = get_atlases()
+# Temporarily commented out for documentation building
+# ATLASES = get_atlases()
+ATLASES = {}
 
 # Shorthands for the different atlases as part of freesurfer"
 ATLASES = {

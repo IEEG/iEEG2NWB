@@ -29,7 +29,7 @@ from pynwb.base import TimeSeries
 from pynwb.ecephys import ElectricalSeries
 from pynwb.file import ElectrodeTable, Subject
 from pynwb.epoch import TimeIntervals
-from ndx_events import TTLs
+# from ndx_events import TTLs  # Temporarily commented out due to import error
 import json
 import yaml
 import argparse
@@ -56,9 +56,74 @@ from mne.io import read_raw_edf
 #   - If correspondence sheet as blank cells that contain only whitespace, remove the whitespaces
 
 class IEEG2NWB:
+    """
+    IEEG2NWB class
+
+    This class is used to convert IEEG data into an NWB file.
+
+    Attributes
+    ----------
+    nwbfile : pynwb.NWBFile
+        The NWBFile object.
+    subject : pynwb.file.Subject
+        The Subject object.
+    start_time : datetime
+        The start time of the session.
+    session_description : str
+        The description of the session.
+    amplifier : pynwb.device.Device
+        The Device object for the amplifier.
+    events : pynwb.epoch.Events
+        The Events object.
+    electrode_groups : list
+        The list of pynwb.ecephys.ElectrodeGroup objects.
+    output_file : str
+        The path to the output NWB file.
+    raw_data_file : str
+        The path to the raw data file.
+    raw_data_type : str
+        The type of raw data.
+    channel_labels : dict
+        The labels and channels of the data.
+    n_chans : int
+        The number of channels in the data.
+    eeg_stores : list
+        The stores containing the primary eeg data.
+    create_path : bool
+        Whether to create the path if it does not exist.
+    annotations : dict
+        The annotations of the data.
+    correspondence_table : pandas.DataFrame
+        The correspondence table.
+    electable : pynwb.file.ElectrodeTable
+        The ElectrodeTable object.
+    electable_columns : list
+        The columns of the pynwb.file.ElectrodeTable.
+    electable_regions : dict
+        The regions of the electable corresponding to different TimeSeries.
+    electable_channels : list
+        The channels of the ElectrodeTable.
+    hdf5_files : list
+        The HDF5 files used to save to NWB.
+    freesurfer_subject_dir : str
+        The directory of the freesurfer subject.
+    freesurfer_subject_id : str
+        The ID of the freesurfer subject.
+
+    Additional Notes
+    ----------------
+    Much of this is written for the HBML lab and is continuous work in progress.
+    """
 
 
-    def __init__(self, description=None):
+    def __init__(self, session_description=None):
+        """Instantiate the IEEG2NWB class.
+
+        Parameters
+        ----------
+        session_description : str
+            description of the session of recording
+        """
 
         self._params = load_nwb_settings()
 
@@ -69,7 +134,7 @@ class IEEG2NWB:
         # Start date and time
         self.start_time = None
         # Session description
-        self.description = description if description is not None else self._params["session_description"]
+        self.session_description = session_description if session_description is not None else self._params["session_description"]
         # Device object for NWB (the amplifier used)
         self.amplifier = None
         # Events table
@@ -113,12 +178,27 @@ class IEEG2NWB:
         self.freesurfer_subject_id = None
 
 
-    def init_nwbfile(self, description=None, start_time=None):
+    def init_nwbfile(self, session_description=None, start_time=None):
+        """Create instance of NWBFile object to begin building NWB file.
+        
+        Parameters
+        ----------
+        session_description : str, optional
+            Description of the session. If None, uses self.session_description.
+        start_time : datetime, optional
+            Start time of the session. If None, uses self.start_time or default from params.
+
+        Raises
+        ------
+        ValueError
+            If no start time is provided and none exists in self.start_time or params.
+        """
+        
         from pynwb import NWBFile
         from uuid import uuid4
 
-        if description is None:
-            description = self.description
+        if session_description is None:
+            session_description = self.session_description
 
         if start_time is None and self.start_time is None:
             start_time = datetime.strptime(self._params["start_time"], "%Y-%m-%d %H:%M:%S").astimezone()
@@ -128,10 +208,29 @@ class IEEG2NWB:
         else:
             raise ValueError("Must provide a start time")
 
-        self.nwbfile = NWBFile(description, str(uuid4()), start_time)
+        self.nwbfile = NWBFile(session_description, str(uuid4()), start_time)
 
     def create_subject(self,subject_id=None,sex=None,species=None,age=None,subject_description=None):
-        """Create subject object."""
+        """Create Subject object
+        
+        Parameters
+        ----------
+        subject_id : str, optional
+            The ID of the subject.
+        sex : str, optional
+            The sex of the subject.
+        species : str, optional
+            The species of the subject.
+        age : int, optional
+            The age of the subject.
+        subject_description : str, optional
+            The description of the subject.
+
+        Raises
+        ------
+        ValueError
+            If required subject information is missing.
+        """
         subject = Subject(
             age=self._params['subject_age'] if age is None else 'P' + str(age) + 'Y',
             sex=self._params['subject_sex'] if sex is None else sex,
@@ -142,7 +241,18 @@ class IEEG2NWB:
         self.nwbfile.subject = subject
 
     def create_device(self, device_name, description=None, manufacturer=None):
-        """Create device object (ex: amplifier)."""
+        """Create device object (ex: amplifier).
+        
+        Parameters
+        ----------
+        device_name : str
+            The name of the device. If xltek or natus, the device will be an amplifier. If tdt, the device will be a TTLs object.
+        description : str, optional
+            The description of the device.
+        manufacturer : str, optional
+            The manufacturer of the device.
+
+        """
         is_amplifier = False
         if device_name.lower() == "xltek" or device_name.lower() == "natus":
             device_info = self._params["devices"]["natus"]
@@ -175,7 +285,16 @@ class IEEG2NWB:
         return device
 
     def set_freesurfer(self, subject_id=None, subject_dir=None):
-        """Set the freesurfer directory for where to read info."""
+        """Set the freesurfer directory for where to read info.
+        
+        Parameters
+        ----------
+        subject_id : str, optional
+            The ID of the subject.
+        subject_dir : str, optional
+            The directory of the subject.
+
+        """
         if subject_dir is None:
             from mne import get_config
             self.freesurfer_subject_dir = get_config()['SUBJECTS_DIR']
@@ -190,7 +309,15 @@ class IEEG2NWB:
             self.freesurfer_subject_id = subject_id
 
     def read_correspondence_sheet(self, correspondence_sheet=None, raw_data_type=None):
-        """Read the correspondence sheet."""
+        """Read the HBML-style correspondence sheet.
+        
+        Parameters
+        ----------
+        correspondence_sheet : str, optional
+            The path to the correspondence sheet.
+        raw_data_type : str, optional
+            The type of raw data. Supported types are: edf, tdt, xltek.
+        """
         if correspondence_sheet is not None:
             if not op.exists(correspondence_sheet):
                 raise FileNotFoundError(f"Correspondence sheet {correspondence_sheet} not found")
@@ -246,7 +373,16 @@ class IEEG2NWB:
         self.correspondence_table = corr_sheet
 
     def create_electrode_groups(self):
-        """Create the ElectrodeGroup objects."""
+        """Create the ElectrodeGroup objects.
+        
+        Creates electrode groups based on the correspondence table and stores them
+        in self.electrode_groups. Each group represents electrodes of the same type
+        (e.g., LDa, LFp) and is associated with the amplifier device.
+        
+        The method processes the correspondence table to identify electrode types
+        and creates appropriate descriptions for each group based on whether they
+        are intracranial or surface electrodes.
+        """
         corr_sheet = self.correspondence_table
         labels = corr_sheet['label'].to_list()
         intracranial_specs = self._params["intracranial_specs"]
@@ -303,7 +439,13 @@ class IEEG2NWB:
         #return elecs_dict
 
     def process_correspondence_sheet(self, update=True):
-        """Add info to correspondence sheet and prepare it to become ElectrodeTable"""
+        """Add info to correspondence sheet and prepare it to become ElectrodeTable.
+        
+        Parameters
+        ----------
+        update : bool, optional
+            Whether to update the correspondence sheet with ielvis data.
+        """
 
         # Parameters for the columns of the electrode table
         cols_for_table = self._params["electrode_table"]["columns"]
@@ -454,7 +596,15 @@ class IEEG2NWB:
         self.correspondence_table = elecs_df
 
     def create_electrode_table(self):
-        """Create the ElectrodeTable that is a DynamicTable object."""
+        """Create the ElectrodeTable that is a DynamicTable object.
+        
+        Creates an ElectrodeTable from the processed correspondence sheet and
+        adds it to the NWB file. The table contains information about each
+        electrode including location, type, and group associations.
+        
+        The method uses the electrode table column definitions and regions
+        that were set up in previous processing steps.
+        """
         cols_to_keep = [c["name"] for c in self.electable_columns]
         elecs_df = self.correspondence_table.loc[:, cols_to_keep]
         electable = ElectrodeTable().from_dataframe(
@@ -466,7 +616,16 @@ class IEEG2NWB:
         self.nwbfile.electrodes = electable
 
     def create_electrode_table_regions(self):
-        """Create the regions for the ElectrodeTable."""
+        """Create the regions for the ElectrodeTable.
+        
+        Creates electrode table regions that group electrodes by their type
+        (e.g., iEEG, EKG, etc.). These regions are used to organize the
+        electrode data and make it easier to access specific electrode types.
+        
+        The method identifies electrodes by their specification type and
+        creates regions for intracranial electrodes, EKG electrodes, and
+        other electrode types as defined in the configuration.
+        """
 
         table_regions = {}
 
@@ -497,7 +656,17 @@ class IEEG2NWB:
         self.electable_regions = table_regions
 
     def read_raw_data(self, raw_data_files, create_device=True, eeg_chans=None):
-        """Set the raw data file."""
+        """Set the raw data file.
+        
+        Parameters
+        ----------
+        raw_data_files : str
+            The path to the raw data file.
+        create_device : bool, optional
+            Whether to create the device object.
+        eeg_chans : list, optional
+            The channels to use for the EEG data.
+        """
         self.raw_data_file = raw_data_files
 
         # Check if file exists
@@ -560,6 +729,7 @@ class IEEG2NWB:
         * unit: string with units of data, default is "volts"
 
         ex:
+        ```
         {
             "name": "audio",
             "description": "audio signal",
@@ -568,6 +738,7 @@ class IEEG2NWB:
             "comment": "contains beeps",
             "unit": "volts"
         }
+        ```
 
         """
         if self.raw_data_type == "tdt":
@@ -587,6 +758,17 @@ class IEEG2NWB:
         """Create the digital acquisition.
         ex:
         create_digital_acquisition(['PtC2', 'PtC4', 'PtC6'])
+
+        Parameters
+        ----------
+        stores : list
+            The stores to use for the TTLs.
+        name : str, optional
+            The name of the TTLs.
+        description : str, optional
+            The description of the TTLs.
+        thresh : int, optional
+            The threshold for the TTLs.
         """
 
         # Get the timestamps and stores they're from
@@ -612,6 +794,7 @@ class IEEG2NWB:
             codes.append(store_codes[ii])
 
         # Create the TTLs object and add to NWB file
+        from ndx_events import TTLs
         events = TTLs(
             name=name,
             description=description,
@@ -622,7 +805,19 @@ class IEEG2NWB:
         self.nwbfile.add_acquisition(events)
 
     def format_data(self, eeg_chans=None):
-        """Process the raw data."""
+        """Process the raw data.
+        
+        Formats the raw data based on the data type (TDT, XLTEK, or EDF)
+        and creates appropriate acquisitions in the NWB file. The method
+        handles different data formats and creates ElectricalSeries objects
+        for each electrode region.
+        
+        Parameters
+        ----------
+        eeg_chans : list, optional
+            Specific channels to use for EEG data. If None, uses default
+            channels based on the data type.
+        """
         if self.raw_data_type == "tdt":
             self._tdt_format_data(eeg_chans)
         elif self.raw_data_type == "xltek":
@@ -662,7 +857,27 @@ class IEEG2NWB:
 
 
     def _create_timeseries(self, name, data, fs, description=None, comments=None, unit="volts"):
-        """Create the TimeSeries object."""
+        """Create the TimeSeries object.
+        
+        Creates a TimeSeries object with the specified parameters and adds it
+        to the NWB file. The data is compressed using HDF5 compression for
+        efficient storage.
+        
+        Parameters
+        ----------
+        name : str
+            Name of the time series.
+        data : array-like
+            The time series data.
+        fs : float
+            Sampling frequency in Hz.
+        description : str, optional
+            Description of the time series.
+        comments : str, optional
+            Additional comments about the data.
+        unit : str, optional
+            Units of the data. Default is "volts".
+        """
 
         if comments is None:
             comments = "no comments"
@@ -691,9 +906,24 @@ class IEEG2NWB:
         self.nwbfile.add_acquisition(ts)
 
     def _create_electricalseries(self, name, data=None, fs=None, description=None, electrodes=None):
-        """
-        Create the ElectricalSeries object.
-        Data must already be in correct format (samples x channels)
+        """Create the ElectricalSeries object.
+        
+        Creates an ElectricalSeries object for electrophysiological data and
+        adds it to the NWB file. The data is compressed using HDF5 compression
+        for efficient storage.
+        
+        Parameters
+        ----------
+        name : str
+            Name of the electrical series.
+        data : array-like, optional
+            The electrophysiological data. Must be in correct format (samples x channels).
+        fs : float, optional
+            Sampling frequency in Hz.
+        description : str, optional
+            Description of the electrical series.
+        electrodes : ElectrodeTableRegion, optional
+            The electrode table region associated with this data.
         """
         if isinstance(data, h5py._hl.dataset.Dataset):
             compressed_data = H5DataIO(data=data, link_data=False)
@@ -718,7 +948,16 @@ class IEEG2NWB:
         self.nwbfile.add_acquisition(es)
 
     def _edf_format_data(self):
-        """Take EDF raw data and format it to be stored in NWB."""
+        """Take EDF raw data and format it to be stored in NWB.
+        
+        Processes EDF format data and creates ElectricalSeries objects for
+        each electrode region. The method extracts data from the specified
+        channels and creates appropriate acquisitions in the NWB file.
+        
+        The data is organized by electrode regions (e.g., iEEG, EKG) and
+        each region gets its own ElectricalSeries with the corresponding
+        electrode information.
+        """
 
         # Get data
         eeg_array = self.raw_data.get_data()
@@ -746,8 +985,19 @@ class IEEG2NWB:
             )
 
     def _edf_create_analog_acquisition(self, analog_stores):
+        """For EDF data create extra analog acquisitions.
         
-        """For EDF data create extra analog acquisitions."""
+        Creates additional analog acquisitions from EDF data beyond the
+        primary electrophysiological recordings. This can include audio,
+        accelerometer, or other analog sensor data.
+        
+        Parameters
+        ----------
+        analog_stores : list of dict
+            List of dictionaries specifying analog acquisitions to create.
+            Each dict should contain 'store', 'channels', 'name', 'description',
+            'unit', and 'comments' keys.
+        """
         raw_data = read_raw_edf(self.raw_data_file)
         
         for eac in analog_stores:
@@ -783,12 +1033,16 @@ class IEEG2NWB:
     def _tdt_create_analog_acquisition(self, analog_stores):
         """For TDT data create extra analog acquisitions.
         
-        Expects list of dicts
-        {"store": <str or list of store containing the data>,
-        "channel": <channels in the stores to use>,
-        "unit": <unit of measurement (ex: volts)>,
-        "comments": <any additional comments>,
-        "name": <name of the new TimeSeries>}
+        Creates additional analog acquisitions from TDT data beyond the
+        primary electrophysiological recordings. This can include audio,
+        accelerometer, or other analog sensor data.
+        
+        Parameters
+        ----------
+        analog_stores : list of dict
+            List of dictionaries specifying analog acquisitions to create.
+            Each dict should contain 'store', 'channels', 'unit', 'comments',
+            'name', and optionally 'write_to_file' and 'file' keys.
         """
         for eac in analog_stores:
 
@@ -861,6 +1115,29 @@ class IEEG2NWB:
                 )
 
     def _get_tdt_eeg_data(self, eeg_chans=None, return_store_list=False):
+        """Get TDT EEG data from the specified channels.
+        
+        Extracts EEG data from TDT format recordings. The method looks for
+        EEG data in the configured TDT neuro channels or specified channels.
+        
+        Parameters
+        ----------
+        eeg_chans : list, optional
+            Specific channels to extract. If None, uses default channels
+            from configuration.
+        return_store_list : bool, optional
+            Whether to return the list of stores used. Default is False.
+            
+        Returns
+        -------
+        tuple
+            (eeg_array, fs) or (eeg_array, fs, store_list) if return_store_list=True
+            
+        Raises
+        ------
+        RuntimeError
+            If EEG data cannot be found in the specified stores.
+        """
         # The default is to look for the EEG stores listed here
         tdt_eeg_channels = self._params["tdt_neuro_channels"]
 
@@ -890,7 +1167,18 @@ class IEEG2NWB:
             return eeg_array, fs
 
     def _tdt_format_data(self, eeg_chans=None):
-        """Take TDT raw data and format it to be stored in NWB."""
+        """Take TDT raw data and format it to be stored in NWB.
+        
+        Processes TDT format data and creates ElectricalSeries objects for
+        each electrode region. The method extracts data from the specified
+        channels and creates appropriate acquisitions in the NWB file.
+        
+        Parameters
+        ----------
+        eeg_chans : list, optional
+            Specific channels to use for EEG data. If None, uses the
+            stores identified during data reading.
+        """
 
         if eeg_chans is None:
             eeg_chans = self.eeg_stores
@@ -918,7 +1206,15 @@ class IEEG2NWB:
             )
 
     def _xltek_format_data(self):
-        """Format the xltek data."""
+        """Format the XLTEK data.
+        
+        Processes XLTEK format data and creates ElectricalSeries objects for
+        each electrode region. The method handles large datasets by saving
+        temporary HDF5 files and creating appropriate acquisitions in the NWB file.
+        
+        The data is organized by electrode regions and each region gets its
+        own ElectricalSeries with the corresponding electrode information.
+        """
         import dask.array as da
 
         fs = self.raw_data.attrs["sample_freq"]
@@ -976,7 +1272,19 @@ class IEEG2NWB:
             self.hdf5_files.append((tmp_filename, f))
 
     def _xltek_create_analog_acquisition(self, analog_stores):
-        """For XLTEK data create extra analog acquisitions."""
+        """For XLTEK data create extra analog acquisitions.
+        
+        Creates additional analog acquisitions from XLTEK data beyond the
+        primary electrophysiological recordings. This can include audio,
+        accelerometer, or other analog sensor data.
+        
+        Parameters
+        ----------
+        analog_stores : list of dict
+            List of dictionaries specifying analog acquisitions to create.
+            Each dict should contain 'channels', 'name', 'description',
+            'unit', and 'comments' keys.
+        """
         import dask.array as da
 
         if self.output_file is not None:
@@ -1033,9 +1341,18 @@ class IEEG2NWB:
 
 
     def write_json_sidecar(self, filename=None, **kwargs):
-        """Write json sidecar file as per BIDS specification
-
-        Input kwargs are keywords used in BIDS sidecar
+        """Write json sidecar file as per BIDS specification.
+        
+        Creates a BIDS-compliant JSON sidecar file that accompanies the NWB file.
+        The sidecar contains metadata about the recording session, channels,
+        and other relevant information for BIDS datasets.
+        
+        Parameters
+        ----------
+        filename : str, optional
+            Output filename for the JSON file. If None, uses self.output_file.
+        **kwargs : dict
+            Additional keyword arguments to override default BIDS metadata.
         """
 
         # Get number of types of channels
@@ -1091,7 +1408,15 @@ class IEEG2NWB:
 
 
     def write_nwb(self, nwb_file=None, write_json=False):
-        """Write the NWB file."""
+        """Write the NWB file.
+        
+        Parameters
+        ----------
+        nwb_file : str, optional
+            The path to the NWB file.
+        write_json : bool, optional
+            Whether to write the json sidecar file.
+        """
         if nwb_file is None and self.output_file is None:
             raise ValueError("Output file must be provided")
         elif nwb_file is None:
@@ -1132,7 +1457,18 @@ class IEEG2NWB:
             self.write_json_sidecar(self.output_file)
 
     def parse_params(self, params):
-        """Run the entire converter given params."""
+        """Run the entire converter given params.
+        
+        Executes the complete conversion pipeline using the provided parameters.
+        This method orchestrates the entire process from reading raw data to
+        writing the final NWB file.
+        
+        Parameters
+        ----------
+        params : dict
+            Dictionary containing all necessary parameters for the conversion.
+            Must include 'block' (path to raw data) and other required fields.
+        """
  
         # Session description
         if 'session_description' in params.keys():
@@ -1249,6 +1585,20 @@ class IEEG2NWB:
 
 
 def batch_file_process(batch_excel_file,create_path=False):
+    """Process multiple files in batch using an Excel file.
+    
+    Reads an Excel file containing parameters for multiple data files and
+    processes each one through the IEEG2NWB converter. Creates individual
+    parameter files for each data file and executes the conversion.
+    
+    Parameters
+    ----------
+    batch_excel_file : str
+        Path to the Excel file containing batch processing parameters.
+    create_path : bool, optional
+        Whether to create output directories if they don't exist.
+        Default is False.
+    """
 
     paramsdir,_ = os.path.splitext(batch_excel_file)
     paramsdir += '_params'
@@ -1499,6 +1849,18 @@ def batch_file_process(batch_excel_file,create_path=False):
 
 
 def cmnd_line_parser():
+    """Parse command line arguments for the IEEG2NWB converter.
+    
+    Handles command line interface for the converter, including options for
+    batch processing, GUI mode, and parameter file input. Sets up the
+    appropriate processing mode based on the provided arguments.
+    
+    The function supports:
+    - Batch processing with Excel files
+    - GUI mode for interactive use
+    - Parameter file input (JSON or YAML)
+    - Direct command line parameter specification
+    """
     # Create parser
     from .messages import example_usage, additional_notes
     parser = argparse.ArgumentParser(description="Convert a file to NWB format",

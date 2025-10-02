@@ -1,7 +1,4 @@
-IEEG2NWB Modules
-================
+Modules
+=======
 
-.. toctree::
-   :maxdepth: 4
-
-   ieeg2nwb 
+This page intentionally left blank. See the API Documentation for available functions and classes. 
